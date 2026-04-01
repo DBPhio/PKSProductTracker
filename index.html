@@ -635,7 +635,7 @@ function render(tid, remoteIds) {
   var rbtn   = document.getElementById(tid + '-rbtn');
   if (s.deleted.length > 0) {
     dbadge.style.display = 'inline-block';
-    dbadge.textContent   = s.deleted.length + ' deleted';
+    dbadge.textContent   = s.deleted.length + ' dispositioned';
     rbtn.style.display   = 'inline-block';
   } else {
     dbadge.style.display = 'none';
@@ -660,7 +660,7 @@ function render(tid, remoteIds) {
     var divider = document.createElement('tr');
     divider.className = 'divrow';
     divider.innerHTML = '<td colspan="12"><div class="divrow-inner">' +
-      '<span>Deleted rows (' + s.deleted.length + ')</span>' +
+      '<span>Dispositioned (' + s.deleted.length + ')</span>' +
       (anyPermSel
         ? '<button class="btn-perm-del" onclick="permDeleteSelected(\'' + tid + '\')">Delete ' + s.permSelected.size + ' permanently</button>'
         : '') +
