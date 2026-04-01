@@ -244,6 +244,14 @@
 const APP_PASSWORD = "Tracker";
 
 // 2. Your Firebase config (paste from Firebase console)
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyCK4Bq3d84tRVu1WLZEk0qwYqBXkdqUyIs",
   authDomain: "pksproducttracker.firebaseapp.com",
@@ -254,6 +262,10 @@ const firebaseConfig = {
   appId: "1:1017580117602:web:7cc09fd9bd4d015d773b3b",
   measurementId: "G-X9M3KLDQ56"
 };
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
 // ================================================================
 //  STATE
@@ -319,28 +331,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // ================================================================
 //  APP INIT
 // ================================================================
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyCK4Bq3d84tRVu1WLZEk0qwYqBXkdqUyIs",
-  authDomain: "pksproducttracker.firebaseapp.com",
-  databaseURL: "https://pksproducttracker-default-rtdb.firebaseio.com",
-  projectId: "pksproducttracker",
-  storageBucket: "pksproducttracker.firebasestorage.app",
-  messagingSenderId: "1017580117602",
-  appId: "1:1017580117602:web:7cc09fd9bd4d015d773b3b",
-  measurementId: "G-X9M3KLDQ56"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+function initApp() {
+  IDS.forEach(tid => render(tid));
+  injectColResizeHandles();
+  initPanelResizers();
+  initFirebase();
+}
 
 // ================================================================
 //  FIREBASE — loaded dynamically so it doesn't block the gate
