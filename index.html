@@ -112,6 +112,15 @@
   .col-rh:hover,.col-rh.active{background:rgba(29,158,117,0.6);}
   .row-rh{position:absolute;bottom:0;left:0;right:0;height:5px;cursor:row-resize;z-index:3;}
   .row-rh:hover,.row-rh.active{background:rgba(29,158,117,0.5);}
+  .drag-handle{display:inline-flex;flex-direction:column;gap:2px;cursor:grab;padding:2px 3px;border-radius:3px;opacity:0.4;transition:opacity .15s;}
+  .drag-handle:hover{opacity:1;background:rgba(255,255,255,0.08);}
+  .drag-handle:active{cursor:grabbing;}
+  .drag-handle span{display:block;width:12px;height:1.5px;background:var(--txt2);border-radius:1px;}
+  tr.row-dragging{opacity:0.35;background:var(--bg2)!important;}
+  tr.row-dragging td{background:var(--bg2)!important;}
+  tr.drop-above td{border-top:2px solid var(--green)!important;}
+  tr.drop-below td{border-bottom:2px solid var(--green)!important;}
+  .drag-ghost{position:fixed;pointer-events:none;z-index:9999;background:var(--hdr);border:1px solid var(--green);border-radius:4px;padding:4px 10px;font-size:8pt;font-family:var(--aptos);color:var(--green-txt);white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
   .nosel,.nosel *{user-select:none!important;}
   ::-webkit-scrollbar{width:8px;height:8px;}
   ::-webkit-scrollbar-track{background:var(--bg2);}
@@ -514,6 +523,7 @@ function rowHTML(tid, row, i, isDel) {
   var dND = dSince(row.dateReturned);
   var rh  = isDel ? '' : '<div class="row-rh" onmousedown="startRowResize(event,\'' + tid + '\',' + row.id + ')"></div>';
   var sk  = row.strikes || {};
+  var dh  = isDel ? '' : '<div class="drag-handle" onmousedown="startRowDrag(event,\'' + tid + '\',' + row.id + ')" title="Drag to reorder"><span></span><span></span><span></span></div>';
 
   // Build td opener: strikeable class + optional cell-struck + click handler
   function td(field) {
@@ -523,7 +533,7 @@ function rowHTML(tid, row, i, isDel) {
 
   return (
     '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="toggleRow(\'' + tid + '\',' + row.id + ',this)"></td>' +
-    '<td class="cn" style="position:relative;">' + (i+1) + rh + '</td>' +
+    '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
     td('dateIssued') + '<input type="date" class="di" value="' + esc(row.dateIssued) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateIssued\',this.value)"></td>' +
     td('lotNumbers') + '<textarea class="ci" rows="1" oninput="autoH(this);updText(\'' + tid + '\',' + row.id + ',\'lotNumbers\',this.value)" onblur="scheduleSave()">' + esc(row.lotNumbers) + '</textarea></td>' +
     td('erLirNumber') + '<textarea class="ci" rows="1" oninput="autoH(this);updText(\'' + tid + '\',' + row.id + ',\'erLirNumber\',this.value)" onblur="scheduleSave()">' + esc(row.erLirNumber) + '</textarea></td>' +
@@ -677,6 +687,120 @@ function injectColResizeHandles() {
 }
 
 // ================================================================
+//  ROW DRAG-TO-REORDER
+// ================================================================
+
+var rowDrag = null;
+var ghost   = null;
+
+function startRowDrag(e, tid, rowId) {
+  if (strikeModeOn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  document.body.classList.add('nosel');
+
+  var dragIdx = -1;
+  for (var i = 0; i < T[tid].rows.length; i++) {
+    if (T[tid].rows[i].id === rowId) { dragIdx = i; break; }
+  }
+  if (dragIdx === -1) return;
+
+  var srcTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]');
+  if (srcTr) srcTr.classList.add('row-dragging');
+
+  ghost = document.createElement('div');
+  ghost.className = 'drag-ghost';
+  ghost.textContent = 'Row ' + (dragIdx + 1);
+  ghost.style.left = (e.clientX + 14) + 'px';
+  ghost.style.top  = (e.clientY - 10) + 'px';
+  document.body.appendChild(ghost);
+
+  rowDrag = { tid: tid, rowId: rowId, dragIdx: dragIdx, dropId: -1, dropIdx: -1, dropPos: null };
+}
+
+function updateRowDrag(e) {
+  if (!rowDrag) return;
+
+  ghost.style.left = (e.clientX + 14) + 'px';
+  ghost.style.top  = (e.clientY - 10) + 'px';
+
+  var tid   = rowDrag.tid;
+  var tbody = document.getElementById(tid + '-tbody');
+  if (!tbody) return;
+  var trs = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-id]'));
+
+  trs.forEach(function(tr){ tr.classList.remove('drop-above','drop-below'); });
+
+  rowDrag.dropId  = -1;
+  rowDrag.dropIdx = -1;
+  rowDrag.dropPos = null;
+
+  var found = false;
+  for (var i = 0; i < trs.length; i++) {
+    var rect = trs[i].getBoundingClientRect();
+    if (e.clientY < rect.top + rect.height / 2) {
+      var id = parseInt(trs[i].dataset.id, 10);
+      rowDrag.dropId  = id;
+      rowDrag.dropPos = 'above';
+      for (var j = 0; j < T[tid].rows.length; j++) {
+        if (T[tid].rows[j].id === id) { rowDrag.dropIdx = j; break; }
+      }
+      trs[i].classList.add('drop-above');
+      found = true;
+      break;
+    }
+  }
+  if (!found && trs.length > 0) {
+    var last = trs[trs.length - 1];
+    var lid  = parseInt(last.dataset.id, 10);
+    rowDrag.dropId  = lid;
+    rowDrag.dropPos = 'below';
+    for (var k = 0; k < T[tid].rows.length; k++) {
+      if (T[tid].rows[k].id === lid) { rowDrag.dropIdx = k; break; }
+    }
+    last.classList.add('drop-below');
+  }
+}
+
+function finishRowDrag() {
+  if (!rowDrag) return;
+
+  var tid     = rowDrag.tid;
+  var fromIdx = rowDrag.dragIdx;
+  var dropId  = rowDrag.dropId;
+  var pos     = rowDrag.dropPos;
+
+  var tbody = document.getElementById(tid + '-tbody');
+  if (tbody) {
+    Array.prototype.slice.call(tbody.querySelectorAll('tr')).forEach(function(tr){
+      tr.classList.remove('row-dragging','drop-above','drop-below');
+    });
+  }
+  if (ghost) { document.body.removeChild(ghost); ghost = null; }
+  document.body.classList.remove('nosel');
+
+  if (dropId !== -1 && rowDrag.dropIdx !== -1) {
+    var rows = T[tid].rows;
+    var moved = rows.splice(fromIdx, 1)[0];
+    // Find drop index after splice
+    var newTo = -1;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].id === dropId) { newTo = i; break; }
+    }
+    if (newTo === -1) {
+      newTo = rows.length; // append at end
+    } else if (pos === 'below') {
+      newTo = newTo + 1;
+    }
+    rows.splice(newTo, 0, moved);
+    render(tid);
+    scheduleSave();
+  }
+
+  rowDrag = null;
+}
+
+// ================================================================
 //  DRAG RESIZE
 // ================================================================
 
@@ -715,6 +839,7 @@ function initPanelResizers() {
 }
 
 document.addEventListener('mousemove', function(e) {
+  if (rowDrag) { updateRowDrag(e); return; }
   if (!dragging) return;
   if (dragging.type === 'col') {
     T[dragging.tid].colWidths[dragging.idx] = Math.max(26, dragging.startW + (e.clientX - dragging.startX));
@@ -737,6 +862,7 @@ document.addEventListener('mousemove', function(e) {
 });
 
 document.addEventListener('mouseup', function() {
+  if (rowDrag) { finishRowDrag(); return; }
   if (dragging) { if (dragging.handle) dragging.handle.classList.remove('active'); dragging = null; }
   document.body.classList.remove('nosel');
 });
