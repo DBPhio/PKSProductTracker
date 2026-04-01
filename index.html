@@ -52,8 +52,8 @@
   .strike-btn:hover{background:#3a3a3a;color:var(--txt);}
   .strike-btn.active{background:#3d2a0d;border-color:#c8922a;color:#f0c040;}
   .strike-mode td.strikeable{cursor:crosshair!important;}
-  td.cell-struck{text-decoration:line-through;color:var(--done-txt)!important;opacity:0.7;}
-  td.cell-struck input,td.cell-struck textarea{text-decoration:line-through;color:var(--done-txt)!important;}
+  td.cell-struck{text-decoration:line-through;color:#c4a8f0!important;}
+  td.cell-struck input,td.cell-struck textarea{text-decoration:line-through;color:#c4a8f0!important;}
   .sync-dot.error{background:#f08080;}
   .outer{display:flex;flex:1;overflow:hidden;}
   .left-panel{display:flex;flex-direction:column;background:var(--bg);overflow:hidden;min-width:120px;}
@@ -100,7 +100,8 @@
   input[type="checkbox"]{width:12px;height:12px;cursor:pointer;accent-color:var(--green);}
   .ci{background:transparent;border:none;outline:none;width:100%;font-size:var(--fs);color:var(--txt);font-family:var(--aptos);padding:0;line-height:1.35;display:block;min-height:1.4em;word-break:break-word;white-space:pre-wrap;cursor:text;}
   .ci:empty::before{content:attr(data-ph);color:var(--txt3);pointer-events:none;}
-  .ci s{text-decoration:line-through;color:var(--done-txt);opacity:0.7;}
+  .ci .struck{text-decoration:line-through;color:#c4a8f0;}
+  .ci s,.ci strike{text-decoration:line-through;color:#c4a8f0;}
   .strike-mode .ci{cursor:text;}
   .di{width:100%;font-size:var(--fs);font-family:var(--aptos);background:transparent;border:none;outline:none;color:var(--txt);cursor:pointer;display:block;}
   td:focus-within{outline:1.5px solid var(--green);outline-offset:-1.5px;}
@@ -474,13 +475,35 @@ function applyTextStrike() {
 
   var range     = sel.getRangeAt(0);
   var container = range.commonAncestorContainer;
-  var ce = (container.nodeType === 3 ? container.parentElement : container).closest('[contenteditable]');
+  var el        = container.nodeType === 3 ? container.parentElement : container;
+  var ce        = el.closest('[contenteditable]');
   if (!ce) return;
 
-  // execCommand('strikethrough') toggles <s> around the selection
-  document.execCommand('strikethrough');
+  // Check if the selection sits entirely inside an existing .struck span
+  // If so, unwrap it (toggle off)
+  var struckParent = el.closest('.struck');
+  if (struckParent && ce.contains(struckParent)) {
+    // Unwrap: replace the .struck span with its plain text
+    var text = document.createTextNode(struckParent.textContent);
+    struckParent.parentNode.replaceChild(text, struckParent);
+  } else {
+    // Wrap the selected text in a <span class="struck">
+    var span = document.createElement('span');
+    span.className = 'struck';
+    try {
+      range.surroundContents(span);
+    } catch(e) {
+      // surroundContents throws if selection crosses element boundaries;
+      // fall back to extractContents + insertNode
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+    }
+  }
 
-  // Save the updated HTML back to the data model
+  // Clear selection so it doesn't look stuck
+  sel.removeAllRanges();
+
+  // Save updated HTML to the data model and Firebase
   var tid   = ce.dataset.tid;
   var rowId = parseInt(ce.dataset.rowid, 10);
   var field = ce.dataset.field;
@@ -488,8 +511,6 @@ function applyTextStrike() {
   var r = s.rows.find(function(r){ return r.id === rowId; }) ||
           s.deleted.find(function(r){ return r.id === rowId; });
   if (r) { r[field] = ce.innerHTML; scheduleSave(); }
-
-  // Keep button active; user stays in strike mode to do more
 }
 
 // Date/calc cells: whole-cell strike on click
