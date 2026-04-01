@@ -10,21 +10,17 @@
      Change "yourpassword" to whatever you want.
      ============================================================ -->
 <script>
-  const APP_PASSWORD = "PKSTracker111";
+  const APP_PASSWORD = "PKSTracker1111";
 </script>
 
 <!-- ============================================================
      STEP 2 — Paste your Firebase config values below.
      ============================================================ -->
 <script type="module">
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue, set }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyCK4Bq3d84tRVu1WLZEk0qwYqBXkdqUyIs",
   authDomain: "pksproducttracker.firebaseapp.com",
@@ -35,9 +31,8 @@ const firebaseConfig = {
   measurementId: "G-X9M3KLDQ56"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
   const MY_ID = Math.random().toString(36).slice(2,8);
   let saveTimer = null;
 
