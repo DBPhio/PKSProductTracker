@@ -112,6 +112,10 @@
   .sp-t{background:var(--bg2);color:var(--txt2);border:1px solid var(--border);}
   .sp-d{background:var(--green-bg);color:var(--green-txt);border:1px solid var(--green);}
   .divrow td{background:var(--del-bg);font-size:11pt;color:var(--del-txt);font-weight:500;padding:3px 6px;text-decoration:none!important;border:var(--grid);font-family:var(--aptos);}
+  .divrow-inner{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .btn-perm-del{font-size:10pt;padding:2px 10px;border-radius:4px;border:1px solid var(--red-border);background:transparent;color:var(--red-txt);cursor:pointer;font-family:var(--aptos);white-space:nowrap;transition:background .15s;}
+  .btn-perm-del:hover{background:var(--red-bg);}
+  tr.del-row-selected td{background:#2a1a1a!important;outline:1px solid var(--red-border);}
   .col-rh{position:absolute;right:-3px;top:0;width:6px;height:100%;cursor:col-resize;z-index:3;border-radius:2px;}
   .col-rh:hover,.col-rh.active{background:rgba(29,158,117,0.6);}
   .row-rh{position:absolute;bottom:0;left:0;right:0;height:5px;cursor:row-resize;z-index:3;}
@@ -293,6 +297,7 @@ IDS.forEach(function(tid) {
     deleted:   [],
     nextId:    4,
     restored:  new Set(),
+    permSelected: new Set(),
     colWidths: DEFAULT_COL_W.slice(),
     rowHeights: {}
   };
@@ -400,6 +405,7 @@ function applyRemote(payload) {
     T[tid].rows    = (remote.rows || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
     T[tid].deleted = (remote.deleted || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
     T[tid].nextId  = remote.nextId  || T[tid].nextId;
+    if (!T[tid].permSelected) T[tid].permSelected = new Set();
     render(tid, changedIds);
   });
   document.getElementById('sync-time').textContent = 'Updated ' + new Date().toLocaleTimeString();
@@ -598,7 +604,7 @@ function rowHTML(tid, row, i, isDel) {
   }
 
   return (
-    '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="toggleRow(\'' + tid + '\',' + row.id + ',this)"></td>' +
+    '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'toggleRow(\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
     '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
     dateTd('dateIssued',   '<input type="date" class="di" value="' + esc(row.dateIssued)   + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateIssued\',this.value)">') +
     textTd('lotNumbers',   row.lotNumbers,  'Lot numbers') +
@@ -650,13 +656,24 @@ function render(tid, remoteIds) {
   });
 
   if (s.deleted.length > 0) {
+    var anyPermSel = s.permSelected.size > 0;
     var divider = document.createElement('tr');
     divider.className = 'divrow';
-    divider.innerHTML = '<td colspan="12">Deleted rows (' + s.deleted.length + ')</td>';
+    divider.innerHTML = '<td colspan="12"><div class="divrow-inner">' +
+      '<span>Deleted rows (' + s.deleted.length + ')</span>' +
+      (anyPermSel
+        ? '<button class="btn-perm-del" onclick="permDeleteSelected(\'' + tid + '\')">Delete ' + s.permSelected.size + ' permanently</button>'
+        : '') +
+      '</div></td>';
     tbody.appendChild(divider);
     s.deleted.forEach(function(row, i) {
       var tr = document.createElement('tr');
-      tr.style.opacity = '0.45';
+      tr.style.opacity = '0.5';
+      tr.dataset.delid = row.id;
+      if (s.permSelected.has(row.id)) {
+        tr.classList.add('del-row-selected');
+        tr.style.opacity = '0.85';
+      }
       tr.innerHTML = rowHTML(tid, row, s.rows.length + i, true);
       tbody.appendChild(tr);
     });
@@ -683,6 +700,29 @@ function render(tid, remoteIds) {
 function toggleRow(tid, id, cb) {
   var r = T[tid].rows.find(function(r){ return r.id === id; });
   if (r) { r.done = cb.checked; render(tid); scheduleSave(); }
+}
+function toggleDelRow(tid, id, cb) {
+  var s = T[tid];
+  if (cb.checked) {
+    s.permSelected.add(id);
+  } else {
+    s.permSelected.delete(id);
+  }
+  render(tid);
+}
+function permDeleteSelected(tid) {
+  var s = T[tid];
+  // Flash selected rows before removing
+  s.permSelected.forEach(function(id) {
+    var tr = document.querySelector('#' + tid + '-tbody tr[data-delid="' + id + '"]');
+    if (tr) tr.classList.add('flash');
+  });
+  setTimeout(function() {
+    s.deleted = s.deleted.filter(function(r){ return !s.permSelected.has(r.id); });
+    s.permSelected.clear();
+    render(tid);
+    scheduleSave();
+  }, 300);
 }
 function toggleAll(tid, cb) {
   T[tid].rows.forEach(function(r){ r.done = cb.checked; });
