@@ -98,7 +98,10 @@
   tr.remote-update{animation:remoteFlash 1.5s ease;}
   @keyframes remoteFlash{0%,40%{background:#1a3528;}100%{}}
   input[type="checkbox"]{width:12px;height:12px;cursor:pointer;accent-color:var(--green);}
-  .ci{background:transparent;border:none;outline:none;width:100%;font-size:var(--fs);color:var(--txt);font-family:var(--aptos);padding:0;resize:none;overflow:hidden;line-height:1.35;display:block;min-height:1.4em;word-break:break-word;white-space:pre-wrap;}
+  .ci{background:transparent;border:none;outline:none;width:100%;font-size:var(--fs);color:var(--txt);font-family:var(--aptos);padding:0;line-height:1.35;display:block;min-height:1.4em;word-break:break-word;white-space:pre-wrap;cursor:text;}
+  .ci:empty::before{content:attr(data-ph);color:var(--txt3);pointer-events:none;}
+  .ci s{text-decoration:line-through;color:var(--txt3);}
+  .strike-mode .ci{cursor:text;}
   .di{width:100%;font-size:var(--fs);font-family:var(--aptos);background:transparent;border:none;outline:none;color:var(--txt);cursor:pointer;display:block;}
   td:focus-within{outline:1.5px solid var(--green);outline-offset:-1.5px;}
   tr.done .ci,tr.done .di{color:var(--done-txt);}
@@ -447,16 +450,49 @@ function mkRow(id) {
 
 // ── Strike mode ──────────────────────────────────────────────
 var strikeModeOn = false;
-var STRIKE_FIELDS = ['dateIssued','lotNumbers','erLirNumber','ncrNumber','dateReturned','dateReviewed'];
+var STRIKE_FIELDS = ['dateIssued','dateReturned','dateReviewed'];
 
 function toggleStrikeMode() {
   strikeModeOn = !strikeModeOn;
   var btn = document.getElementById('strike-btn');
   btn.classList.toggle('active', strikeModeOn);
-  btn.title = strikeModeOn ? 'Strike mode ON — click any cell to toggle strikethrough. Click button again to exit.' : 'Strike through a cell — click to enable, then click any cell';
+  btn.title = strikeModeOn
+    ? 'Strike mode ON — highlight text in a cell to strike it, or click a date cell. Click button again to exit.'
+    : 'Strike through — click to enable, then highlight text or click a date cell';
   document.getElementById('outer').classList.toggle('strike-mode', strikeModeOn);
+  if (!strikeModeOn) {
+    // Clear any lingering selection
+    if (window.getSelection) window.getSelection().removeAllRanges();
+  }
 }
 
+// Applied via mouseup when text is selected inside a contenteditable cell
+function applyTextStrike() {
+  if (!strikeModeOn) return;
+  var sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+
+  var range     = sel.getRangeAt(0);
+  var container = range.commonAncestorContainer;
+  var ce = (container.nodeType === 3 ? container.parentElement : container).closest('[contenteditable]');
+  if (!ce) return;
+
+  // execCommand('strikethrough') toggles <s> around the selection
+  document.execCommand('strikethrough');
+
+  // Save the updated HTML back to the data model
+  var tid   = ce.dataset.tid;
+  var rowId = parseInt(ce.dataset.rowid, 10);
+  var field = ce.dataset.field;
+  var s = T[tid];
+  var r = s.rows.find(function(r){ return r.id === rowId; }) ||
+          s.deleted.find(function(r){ return r.id === rowId; });
+  if (r) { r[field] = ce.innerHTML; scheduleSave(); }
+
+  // Keep button active; user stays in strike mode to do more
+}
+
+// Date/calc cells: whole-cell strike on click
 function handleCellStrike(e, tid, rowId, field) {
   if (!strikeModeOn) return;
   e.preventDefault();
@@ -525,21 +561,30 @@ function rowHTML(tid, row, i, isDel) {
   var sk  = row.strikes || {};
   var dh  = isDel ? '' : '<div class="drag-handle" onmousedown="startRowDrag(event,\'' + tid + '\',' + row.id + ')" title="Drag to reorder"><span></span><span></span><span></span></div>';
 
-  // Build td opener: strikeable class + optional cell-struck + click handler
-  function td(field) {
+  // Date fields: cell-level strike (whole cell toggled on click in strike mode)
+  function dateTd(field, inputHtml) {
     var cls = 'strikeable' + (sk[field] ? ' cell-struck' : '');
-    return '<td class="' + cls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'' + field + '\')">';
+    return '<td class="' + cls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'' + field + '\')">' + inputHtml + '</td>';
+  }
+
+  // Text fields: contenteditable div — strikethrough applied to selected text
+  function textTd(field, html, placeholder) {
+    return '<td><div class="ci" contenteditable="true" ' +
+      'data-tid="' + tid + '" data-rowid="' + row.id + '" data-field="' + field + '" ' +
+      'data-ph="' + placeholder + '" ' +
+      'oninput="updHtml(this)" onblur="scheduleSave()">' +
+      (html || '') + '</div></td>';
   }
 
   return (
     '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="toggleRow(\'' + tid + '\',' + row.id + ',this)"></td>' +
     '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
-    td('dateIssued') + '<input type="date" class="di" value="' + esc(row.dateIssued) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateIssued\',this.value)"></td>' +
-    td('lotNumbers') + '<textarea class="ci" rows="1" oninput="autoH(this);updText(\'' + tid + '\',' + row.id + ',\'lotNumbers\',this.value)" onblur="scheduleSave()">' + esc(row.lotNumbers) + '</textarea></td>' +
-    td('erLirNumber') + '<textarea class="ci" rows="1" oninput="autoH(this);updText(\'' + tid + '\',' + row.id + ',\'erLirNumber\',this.value)" onblur="scheduleSave()">' + esc(row.erLirNumber) + '</textarea></td>' +
-    td('ncrNumber') + '<textarea class="ci" rows="1" oninput="autoH(this);updText(\'' + tid + '\',' + row.id + ',\'ncrNumber\',this.value)" onblur="scheduleSave()">' + esc(row.ncrNumber) + '</textarea></td>' +
-    td('dateReturned') + '<input type="date" class="di" value="' + esc(row.dateReturned) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReturned\',this.value)"></td>' +
-    td('dateReviewed') + '<input type="date" class="di" value="' + esc(row.dateReviewed) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReviewed\',this.value)"></td>' +
+    dateTd('dateIssued',   '<input type="date" class="di" value="' + esc(row.dateIssued)   + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateIssued\',this.value)">') +
+    textTd('lotNumbers',   row.lotNumbers,  'Lot numbers') +
+    textTd('erLirNumber',  row.erLirNumber, 'ER/LIR number') +
+    textTd('ncrNumber',    row.ncrNumber,   'NCR number') +
+    dateTd('dateReturned', '<input type="date" class="di" value="' + esc(row.dateReturned) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReturned\',this.value)">') +
+    dateTd('dateReviewed', '<input type="date" class="di" value="' + esc(row.dateReviewed) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReviewed\',this.value)">') +
     cCell(dIR) + cCell(dRR) + cCell(dND) +
     '<td style="text-align:center;vertical-align:middle;"><span class="sp ' + (row.done ? 'sp-d' : 'sp-t') + '">' + (row.done ? 'Done' : 'To do') + '</span></td>'
   );
@@ -604,7 +649,9 @@ function render(tid, remoteIds) {
     sa.indeterminate = s.rows.some(function(r){ return r.done; }) && !sa.checked;
   }
 
-  tbody.querySelectorAll('textarea.ci').forEach(autoH);
+  tbody.querySelectorAll('.ci').forEach(function(el){
+    // nothing — contenteditable divs auto-size naturally
+  });
   applyColWidths(tid);
 }
 
@@ -655,6 +702,16 @@ function updText(tid, id, field, value) {
   var r = s.rows.find(function(r){ return r.id === id; }) ||
           s.deleted.find(function(r){ return r.id === id; });
   if (r) r[field] = value;
+}
+// Contenteditable divs: save innerHTML so <s> tags are preserved
+function updHtml(el) {
+  var tid   = el.dataset.tid;
+  var rowId = parseInt(el.dataset.rowid, 10);
+  var field = el.dataset.field;
+  var s = T[tid];
+  var r = s.rows.find(function(r){ return r.id === rowId; }) ||
+          s.deleted.find(function(r){ return r.id === rowId; });
+  if (r) r[field] = el.innerHTML;
 }
 
 // ================================================================
@@ -861,10 +918,12 @@ document.addEventListener('mousemove', function(e) {
   }
 });
 
-document.addEventListener('mouseup', function() {
+document.addEventListener('mouseup', function(e) {
   if (rowDrag) { finishRowDrag(); return; }
   if (dragging) { if (dragging.handle) dragging.handle.classList.remove('active'); dragging = null; }
   document.body.classList.remove('nosel');
+  // Apply text-selection strikethrough if strike mode is on
+  applyTextStrike();
 });
 </script>
 </body>
