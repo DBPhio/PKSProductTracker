@@ -191,7 +191,7 @@
           <th class="ca">Days Issued to Return</th>
           <th class="ca">Days Returned to Review</th>
           <th class="ca">Days not Dispositioned</th>
-          <th style="text-align:center;">Status</th>
+          
         </tr></thead></table>
       </div>
       <div class="tbody-wrap" id="imm-tbody-wrap" onscroll="syncScroll('imm',this)">
@@ -223,7 +223,7 @@
             <th class="ca">Days Issued to Return</th>
             <th class="ca">Days Returned to Review</th>
             <th class="ca">Days not Dispositioned</th>
-            <th style="text-align:center;">Status</th>
+            
           </tr></thead></table>
         </div>
         <div class="tbody-wrap" id="prompt-tbody-wrap" onscroll="syncScroll('prompt',this)">
@@ -254,7 +254,7 @@
             <th class="ca">Days Issued to Return</th>
             <th class="ca">Days Returned to Review</th>
             <th class="ca">Days not Dispositioned</th>
-            <th style="text-align:center;">Status</th>
+            
           </tr></thead></table>
         </div>
         <div class="tbody-wrap" id="biofire-tbody-wrap" onscroll="syncScroll('biofire',this)">
@@ -287,7 +287,7 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W = [28,26,108,80,90,76,108,108,82,90,88,72];
+const DEFAULT_COL_W = [28,26,108,80,90,76,108,108,82,90,88];
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -613,8 +613,7 @@ function rowHTML(tid, row, i, isDel) {
     textTd('ncrNumber',    row.ncrNumber,   'NCR number') +
     dateTd('dateReturned', '<input type="date" class="di" value="' + esc(row.dateReturned) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReturned\',this.value)">') +
     dateTd('dateReviewed', '<input type="date" class="di" value="' + esc(row.dateReviewed) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReviewed\',this.value)">') +
-    cCell(dIR) + cCell(dRR) + cCell(dND) +
-    '<td style="text-align:center;vertical-align:middle;"><span class="sp ' + (row.done ? 'sp-d' : 'sp-t') + '">' + (row.done ? 'Done' : 'To do') + '</span></td>'
+    cCell(dIR) + cCell(dRR) + cCell(dND)
   );
 }
 
@@ -660,7 +659,7 @@ function render(tid, remoteIds) {
     var anyPermSel = s.permSelected.size > 0;
     var divider = document.createElement('tr');
     divider.className = 'divrow';
-    divider.innerHTML = '<td colspan="12"><div class="divrow-inner">' +
+    divider.innerHTML = '<td colspan="11"><div class="divrow-inner">' +
       '<span>Dispositioned (' + s.deleted.length + ')</span>' +
       '<div style="display:flex;gap:6px;align-items:center;">' +
       (anyPermSel
