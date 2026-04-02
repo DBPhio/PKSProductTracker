@@ -581,9 +581,10 @@ function syncScroll(tid, bw) {
 // ================================================================
 
 function rowHTML(tid, row, i, isDel) {
-  var dIR = dBetween(row.dateIssued, row.dateReturned);
-  var dRR = dBetween(row.dateReturned, row.dateReviewed);
-  var dND = dSince(row.dateReturned);
+  // Active rows: calculate live. Dispositioned rows: show frozen snapshot (set at time of dispositioning).
+  var dIR = isDel ? (row._snapIR !== undefined ? row._snapIR : null) : dBetween(row.dateIssued, row.dateReturned);
+  var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.dateReviewed);
+  var dND = isDel ? (row._snapND !== undefined ? row._snapND : null) : dSince(row.dateReturned);
   var rh  = isDel ? '' : '<div class="row-rh" onmousedown="startRowResize(event,\'' + tid + '\',' + row.id + ')"></div>';
   var sk  = row.strikes || {};
   var dh  = isDel ? '' : '<div class="drag-handle" onmousedown="startRowDrag(event,\'' + tid + '\',' + row.id + ')" title="Drag to reorder"><span></span><span></span><span></span></div>';
@@ -736,14 +737,28 @@ function deleteChecked(tid) {
     if (tr) tr.classList.add('flash');
   });
   setTimeout(function() {
-    toDel.forEach(function(r){ r.done = false; s.deleted.push(r); });
+    toDel.forEach(function(r) {
+      // Freeze the calculated values at the moment of dispositioning
+      r._snapIR = dBetween(r.dateIssued, r.dateReturned);
+      r._snapRR = dBetween(r.dateReturned, r.dateReviewed);
+      r._snapND = dSince(r.dateReturned);
+      r.done = false;
+      s.deleted.push(r);
+    });
     s.rows = s.rows.filter(function(r){ return toDel.indexOf(r) === -1; });
     render(tid); scheduleSave();
   }, 300);
 }
 function restoreAll(tid) {
   var s = T[tid];
-  s.deleted.forEach(function(r){ s.restored.add(r.id); s.rows.push(r); });
+  s.deleted.forEach(function(r) {
+    // Remove frozen snapshots so live calculations resume
+    delete r._snapIR;
+    delete r._snapRR;
+    delete r._snapND;
+    s.restored.add(r.id);
+    s.rows.push(r);
+  });
   s.deleted = [];
   render(tid); scheduleSave();
 }
