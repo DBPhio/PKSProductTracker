@@ -637,11 +637,11 @@ function render(tid, remoteIds) {
   if (s.deleted.length > 0) {
     dbadge.style.display = 'inline-block';
     dbadge.textContent   = s.deleted.length + ' dispositioned';
-    rbtn.style.display   = 'inline-block';
   } else {
     dbadge.style.display = 'none';
-    rbtn.style.display   = 'none';
   }
+  // Restore button is now in the Dispositioned divider — hide the header one
+  rbtn.style.display = 'none';
 
   tbody.innerHTML = '';
 
@@ -662,9 +662,12 @@ function render(tid, remoteIds) {
     divider.className = 'divrow';
     divider.innerHTML = '<td colspan="12"><div class="divrow-inner">' +
       '<span>Dispositioned (' + s.deleted.length + ')</span>' +
+      '<div style="display:flex;gap:6px;align-items:center;">' +
       (anyPermSel
-        ? '<button class="btn-perm-del" onclick="permDeleteSelected(\'' + tid + '\')">Delete ' + s.permSelected.size + ' permanently</button>'
-        : '') +
+        ? '<button class="btn btn-r" style="font-size:10pt;" onclick="restoreAll(\'' + tid + '\')">Restore ' + s.permSelected.size + ' selected</button>' +
+          '<button class="btn-perm-del" onclick="permDeleteSelected(\'' + tid + '\')">Delete ' + s.permSelected.size + ' permanently</button>'
+        : '<button class="btn btn-r" style="font-size:10pt;opacity:0.5;" onclick="restoreAll(\'' + tid + '\')" title="Check rows below to restore specific ones, or click to restore all">Restore all</button>') +
+      '</div>' +
       '</div></td>';
     tbody.appendChild(divider);
     s.deleted.forEach(function(row, i) {
@@ -751,15 +754,18 @@ function deleteChecked(tid) {
 }
 function restoreAll(tid) {
   var s = T[tid];
-  s.deleted.forEach(function(r) {
-    // Remove frozen snapshots so live calculations resume
-    delete r._snapIR;
-    delete r._snapRR;
-    delete r._snapND;
+  // If nothing specifically selected, restore everything (keeps the toolbar button useful)
+  var toRestore = s.permSelected.size > 0
+    ? s.deleted.filter(function(r){ return s.permSelected.has(r.id); })
+    : s.deleted.slice();
+  toRestore.forEach(function(r) {
+    delete r._snapIR; delete r._snapRR; delete r._snapND;
     s.restored.add(r.id);
     s.rows.push(r);
   });
-  s.deleted = [];
+  var restoreIds = new Set(toRestore.map(function(r){ return r.id; }));
+  s.deleted = s.deleted.filter(function(r){ return !restoreIds.has(r.id); });
+  s.permSelected.clear();
   render(tid); scheduleSave();
 }
 function addRow(tid) {
