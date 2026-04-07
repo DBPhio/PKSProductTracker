@@ -8,6 +8,7 @@
 <!-- Firebase compat SDKs (standard scripts, no module imports needed) -->
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500&display=swap');
@@ -24,22 +25,18 @@
   html,body{height:100%;background:var(--bg3);font-family:var(--aptos);}
   body{display:flex;flex-direction:column;}
 
-  /* ── Gate ── */
-  #gate{position:fixed;inset:0;background:var(--bg3);display:flex;align-items:center;justify-content:center;z-index:1000;}
-  .gate-box{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:36px 40px;width:320px;display:flex;flex-direction:column;gap:16px;}
+  /* ── Auth Views ── */
+  #view-signed-out,#view-pending{position:fixed;inset:0;background:var(--bg3);display:flex;align-items:center;justify-content:center;z-index:1000;}
+  .gate-box{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:36px 40px;width:340px;display:flex;flex-direction:column;gap:16px;}
   .gate-title{font-size:14pt;font-weight:500;color:var(--txt);font-family:var(--aptos);text-align:center;}
   .gate-sub{font-size:11pt;color:var(--txt3);font-family:var(--aptos);text-align:center;margin-top:-8px;}
-  .gate-input-wrap{position:relative;}
-  .gate-input{width:100%;padding:10px 40px 10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--txt);font-size:11pt;font-family:var(--aptos);outline:none;transition:border-color .15s;}
-  .gate-input:focus{border-color:var(--green);}
-  .gate-input.shake{animation:shake .35s ease;border-color:var(--red-border)!important;}
-  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
-  .gate-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--txt3);font-size:13px;padding:2px;}
-  .gate-eye:hover{color:var(--txt2);}
   .gate-btn{width:100%;padding:10px;background:var(--green);border:none;border-radius:6px;color:#fff;font-size:11pt;font-family:var(--aptos);font-weight:500;cursor:pointer;transition:background .15s;}
   .gate-btn:hover{background:#18876a;}
-  .gate-error{font-size:11pt;color:var(--red-txt);text-align:center;font-family:var(--aptos);min-height:16px;}
+  .gate-btn-outline{width:100%;padding:10px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--txt2);font-size:11pt;font-family:var(--aptos);cursor:pointer;transition:background .15s;}
+  .gate-btn-outline:hover{background:#3a3a3a;}
   .gate-hint{font-size:11pt;color:var(--txt3);text-align:center;font-family:var(--aptos);border-top:1px solid #333;padding-top:14px;}
+  .uid-label{font-size:11pt;color:var(--txt3);font-family:var(--aptos);}
+  .uid-box{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:10pt;color:var(--green-txt);font-family:monospace;word-break:break-all;}
 
   /* ── App ── */
   #app{display:none;flex-direction:column;flex:1;overflow:hidden;}
@@ -138,19 +135,26 @@
 </head>
 <body>
 
-<!-- ── Gate ── -->
-<div id="gate">
+<!-- ── View: Not signed in ── -->
+<div id="view-signed-out">
   <div class="gate-box">
     <div class="gate-title">QA Product Tracker</div>
-    <div class="gate-sub">Enter password to continue</div>
-    <div class="gate-input-wrap">
-      <input class="gate-input" type="password" id="gate-input" placeholder="Password"
-        autocomplete="current-password" onkeydown="if(event.key==='Enter')submitPassword()">
-      <button class="gate-eye" onclick="toggleEye()" title="Show/hide">👁</button>
-    </div>
-    <div class="gate-error" id="gate-error"></div>
-    <button class="gate-btn" onclick="submitPassword()">Unlock</button>
-    <div class="gate-hint">Session stays unlocked until you close the tab.</div>
+    <div class="gate-sub">Sign in to continue</div>
+    <button class="gate-btn" onclick="signIn()">Sign in with Google</button>
+  </div>
+</div>
+
+<!-- ── View: Signed in, awaiting access ── -->
+<div id="view-pending" style="display:none">
+  <div class="gate-box">
+    <div class="gate-title">Access Pending</div>
+    <div class="gate-sub">You're signed in but don't have access yet.<br>Send your admin the info below.</div>
+    <div class="uid-label">Email</div>
+    <div class="uid-box" id="pending-email"></div>
+    <div class="uid-label">UID</div>
+    <div class="uid-box" id="pending-uid"></div>
+    <div class="gate-hint">Once access is granted, refresh this page.</div>
+    <button class="gate-btn-outline" onclick="signOut()">Sign Out</button>
   </div>
 </div>
 
@@ -270,8 +274,6 @@
 //  CONFIG  — edit APP_PASSWORD and FIREBASE_CONFIG before uploading
 // ================================================================
 
-const APP_PASSWORD = "Tracker2026"; // ← change to your password
-
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyCK4Bq3d84tRVu1WLZEk0qwYqBXkdqUyIs",
   authDomain:        "pksproducttracker.firebaseapp.com",
@@ -310,38 +312,58 @@ var fbDatabase   = null;  // assigned after Firebase init
 //  GATE
 // ================================================================
 
-function submitPassword() {
-  var input = document.getElementById('gate-input');
-  var error = document.getElementById('gate-error');
-  if (input.value === APP_PASSWORD) {
-    sessionStorage.setItem('qa-unlocked', '1');
-    document.getElementById('gate').style.display = 'none';
+// ================================================================
+//  AUTH
+// ================================================================
+
+function signIn() {
+  var provider = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(provider).catch(function(e) {
+    console.error('Sign-in error:', e);
+  });
+}
+
+function signOut() {
+  firebase.auth().signOut();
+}
+
+function showView(state, user) {
+  document.getElementById('view-signed-out').style.display = 'none';
+  document.getElementById('view-pending').style.display    = 'none';
+  document.getElementById('app').classList.remove('unlocked');
+
+  if (state === 'signedOut') {
+    document.getElementById('view-signed-out').style.display = 'flex';
+  } else if (state === 'pending') {
+    document.getElementById('pending-email').textContent = user.email;
+    document.getElementById('pending-uid').textContent   = user.uid;
+    document.getElementById('view-pending').style.display = 'flex';
+  } else if (state === 'authorized') {
     document.getElementById('app').classList.add('unlocked');
-    initApp();
-  } else {
-    error.textContent = 'Incorrect password. Try again.';
-    input.classList.remove('shake');
-    void input.offsetWidth; // force reflow to restart animation
-    input.classList.add('shake');
-    input.value = '';
-    input.focus();
-    setTimeout(function(){ input.classList.remove('shake'); }, 400);
   }
 }
 
-function toggleEye() {
-  var i = document.getElementById('gate-input');
-  i.type = i.type === 'password' ? 'text' : 'password';
-}
+window.addEventListener('load', function() {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  fbDatabase = firebase.database();
 
-document.addEventListener('DOMContentLoaded', function() {
-  if (sessionStorage.getItem('qa-unlocked') === '1') {
-    document.getElementById('gate').style.display = 'none';
-    document.getElementById('app').classList.add('unlocked');
-    initApp();
-  } else {
-    document.getElementById('gate-input').focus();
-  }
+  firebase.auth().onAuthStateChanged(function(user) {
+    if (!user) { showView('signedOut'); return; }
+
+    fbDatabase.ref('authorizedUsers/' + user.uid + '/canAdd').get()
+      .then(function(snap) {
+        if (snap.exists() && snap.val() === true) {
+          showView('authorized', user);
+          initApp();
+        } else {
+          showView('pending', user);
+        }
+      })
+      .catch(function(e) {
+        console.error('Access check error:', e);
+        showView('pending', user);
+      });
+  });
 });
 
 // ================================================================
@@ -352,18 +374,15 @@ function initApp() {
   IDS.forEach(function(tid){ render(tid); });
   injectColResizeHandles();
   initPanelResizers();
-  initFirebase();
+  initFirebaseListeners();
 }
 
 // ================================================================
 //  FIREBASE  (uses compat SDK loaded via <script> tags above)
 // ================================================================
 
-function initFirebase() {
+function initFirebaseListeners() {
   try {
-    var app = firebase.initializeApp(FIREBASE_CONFIG);
-    fbDatabase = firebase.database();
-
     // Listen for remote changes
     fbDatabase.ref('qa-tracker/data').on('value', function(snapshot) {
       var payload = snapshot.val();
