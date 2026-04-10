@@ -188,7 +188,7 @@
           <th class="cc"><input type="checkbox" id="imm-sa" onchange="toggleAll('imm',this)"></th>
           <th class="cn">#</th>
           <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
-          <th>Date Returned</th><th>Date Reviewed</th>
+          <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
           <th class="ca">Days Issued to Return</th>
           <th class="ca">Days Returned to Review</th>
           <th class="ca">Days not Dispositioned</th>
@@ -219,7 +219,7 @@
             <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
             <th class="cn">#</th>
             <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
-            <th>Date Returned</th><th>Date Reviewed</th>
+            <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
             <th class="ca">Days Issued to Return</th>
             <th class="ca">Days Returned to Review</th>
             <th class="ca">Days not Dispositioned</th>
@@ -249,7 +249,7 @@
             <th class="cc"><input type="checkbox" id="biofire-sa" onchange="toggleAll('biofire',this)"></th>
             <th class="cn">#</th>
             <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
-            <th>Date Returned</th><th>Date Reviewed</th>
+            <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
             <th class="ca">Days Issued to Return</th>
             <th class="ca">Days Returned to Review</th>
             <th class="ca">Days not Dispositioned</th>
@@ -283,7 +283,7 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W = [28,26,108,80,90,76,108,108,82,90,88];
+const DEFAULT_COL_W = [28,26,108,80,90,76,108,108,108,82,90,88];
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -474,7 +474,7 @@ function setSyncStatus(state) {
 // ================================================================
 
 function mkRow(id) {
-  return { id:id, dateIssued:'', lotNumbers:'', erLirNumber:'', ncrNumber:'', dateReturned:'', dateReviewed:'', done:false, strikes:{} };
+  return { id:id, dateIssued:'', lotNumbers:'', erLirNumber:'', ncrNumber:'', dateReturned:'', initialReviewDate:'', reviewCompleteDate:'', done:false, strikes:{} };
 }
 
 // ── Strike mode ──────────────────────────────────────────────
@@ -598,7 +598,7 @@ function syncScroll(tid, bw) {
 function rowHTML(tid, row, i, isDel) {
   // Active rows: calculate live. Dispositioned rows: show frozen snapshot (set at time of dispositioning).
   var dIR = isDel ? (row._snapIR !== undefined ? row._snapIR : null) : dBetween(row.dateIssued, row.dateReturned);
-  var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.dateReviewed);
+  var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.reviewCompleteDate);
   var dND = isDel ? (row._snapND !== undefined ? row._snapND : null) : dSince(row.dateReturned);
   var rh  = isDel ? '' : '<div class="row-rh" onmousedown="startRowResize(event,\'' + tid + '\',' + row.id + ')"></div>';
   var sk  = row.strikes || {};
@@ -627,7 +627,8 @@ function rowHTML(tid, row, i, isDel) {
     textTd('erLirNumber',  row.erLirNumber, 'ER/LIR number') +
     textTd('ncrNumber',    row.ncrNumber,   'NCR number') +
     dateTd('dateReturned', '<input type="date" class="di" value="' + esc(row.dateReturned) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReturned\',this.value)">') +
-    dateTd('dateReviewed', '<input type="date" class="di" value="' + esc(row.dateReviewed) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReviewed\',this.value)">') +
+    dateTd('initialReviewDate', '<input type="date" class="di" value="' + esc(row.initialReviewDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'initialReviewDate\',this.value)">') +
+    dateTd('reviewCompleteDate', '<input type="date" class="di" value="' + esc(row.reviewCompleteDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'reviewCompleteDate\',this.value)">') +
     cCell(dIR) + cCell(dRR) + cCell(dND)
   );
 }
@@ -674,7 +675,7 @@ function render(tid, remoteIds) {
     var anyPermSel = s.permSelected.size > 0;
     var divider = document.createElement('tr');
     divider.className = 'divrow';
-    divider.innerHTML = '<td colspan="11"><div class="divrow-inner">' +
+    divider.innerHTML = '<td colspan="12"><div class="divrow-inner">' +
       '<span>Dispositioned (' + s.deleted.length + ')</span>' +
       '<div style="display:flex;gap:6px;align-items:center;">' +
       (anyPermSel
@@ -754,7 +755,7 @@ function deleteChecked(tid) {
     toDel.forEach(function(r) {
       // Freeze the calculated values at the moment of dispositioning
       r._snapIR = dBetween(r.dateIssued, r.dateReturned);
-      r._snapRR = dBetween(r.dateReturned, r.dateReviewed);
+      r._snapRR = dBetween(r.dateReturned, r.reviewCompleteDate);
       r._snapND = dSince(r.dateReturned);
       r.done = false;
       s.deleted.push(r);
