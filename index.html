@@ -127,16 +127,16 @@
   .sterility-counter.ok{color:var(--green-txt);}
   .sterility-counter.warn{color:#f0c040;}
   .sterility-counter.expired{color:#f08080;}
-  .calc-panel-toggle{width:100%;padding:4px 0;background:transparent;border:none;border-bottom:1px solid var(--border);cursor:pointer;color:var(--green-txt);font-size:10pt;font-family:var(--aptos);display:flex;align-items:center;justify-content:center;gap:4px;flex-shrink:0;transition:background .15s;}
-  .calc-panel-toggle:hover{background:var(--green-bg);}
-  .calc-panel.collapsed{width:26px!important;}
-  .calc-panel.collapsed .calc-panel-toggle{writing-mode:vertical-rl;text-orientation:mixed;padding:8px 0;height:auto;border-bottom:none;border-top:1px solid var(--border);}
-  .calc-panel.collapsed .thead-wrap,
-  .calc-panel.collapsed .calc-body-wrap{display:none;}
-  .panel-table-area{display:flex;flex:1;overflow:hidden;}
+  .panel-table-area{display:flex;flex:1;overflow:hidden;position:relative;}
   .panel-scroll-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
   .calc-panel{flex-shrink:0;display:flex;flex-direction:column;border-left:2px solid var(--green);background:var(--bg);}
   .calc-panel .thead-wrap{overflow:hidden;border-bottom:1px solid var(--border);}
+  .calc-panel-toggle{position:absolute;top:0;bottom:0;right:0;width:18px;z-index:10;background:var(--calc-bg);border:none;border-left:2px solid var(--green);cursor:pointer;color:var(--green-txt);font-size:8.5pt;font-family:var(--aptos);writing-mode:vertical-rl;text-orientation:mixed;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;}
+  .calc-panel-toggle:hover{background:var(--green-bg);}
+  .calc-panel.collapsed .thead-wrap,
+  .calc-panel.collapsed .calc-body-wrap{display:none;}
+  .calc-panel.collapsed{width:0!important;border:none;}
+  .panel-table-area.calc-collapsed .calc-panel-toggle{border-left:2px solid var(--green);background:var(--calc-bg);}
   .calc-body-wrap{flex:1;overflow:hidden;}
   .calc-body-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;}
     .nosel,.nosel *{user-select:none!important;}
@@ -214,7 +214,7 @@
           </div>
         </div>
         <div class="calc-panel" id="imm-calc-panel">
-          <button class="calc-panel-toggle" onclick="toggleCalcPanel('imm')" id="imm-calc-toggle" title="Collapse/expand columns">◀ Columns</button>
+          <button class="calc-panel-toggle" onclick="toggleCalcPanel('imm')" id="imm-calc-toggle" title="Collapse/expand columns">◀</button>
           <div class="thead-wrap">
             <table id="imm-calc-htable"><thead><tr>
               <th class="ca">Days Issued to Return</th>
@@ -259,7 +259,7 @@
             </div>
           </div>
           <div class="calc-panel" id="prompt-calc-panel">
-            <button class="calc-panel-toggle" onclick="toggleCalcPanel('prompt')" id="prompt-calc-toggle" title="Collapse/expand columns">◀ Columns</button>
+            <button class="calc-panel-toggle" onclick="toggleCalcPanel('prompt')" id="prompt-calc-toggle" title="Collapse/expand columns">◀</button>
             <div class="thead-wrap">
               <table id="prompt-calc-htable"><thead><tr>
                 <th class="ca">Sterility Date</th>
@@ -304,7 +304,7 @@
             </div>
           </div>
           <div class="calc-panel" id="biofire-calc-panel">
-            <button class="calc-panel-toggle" onclick="toggleCalcPanel('biofire')" id="biofire-calc-toggle" title="Collapse/expand columns">◀ Columns</button>
+            <button class="calc-panel-toggle" onclick="toggleCalcPanel('biofire')" id="biofire-calc-toggle" title="Collapse/expand columns">◀</button>
             <div class="thead-wrap">
               <table id="biofire-calc-htable"><thead><tr>
                 <th class="ca">Days Issued to Return</th>
@@ -990,12 +990,14 @@ function injectColResizeHandles() {
 }
 
 function toggleCalcPanel(tid) {
-  var panel  = document.getElementById(tid + '-calc-panel');
-  var btn    = document.getElementById(tid + '-calc-toggle');
-  if (!panel) return;
+  var panel = document.getElementById(tid + '-calc-panel');
+  var btn   = document.getElementById(tid + '-calc-toggle');
+  var area  = panel ? panel.closest('.panel-table-area') : null;
+  if (!panel || !area) return;
   var collapsed = panel.classList.toggle('collapsed');
-  btn.textContent = collapsed ? '▶' : '◀ Columns';
-  btn.title       = collapsed ? 'Expand columns' : 'Collapse columns';
+  area.classList.toggle('calc-collapsed', collapsed);
+  btn.textContent = collapsed ? '▶' : '◀';
+  btn.title = collapsed ? 'Expand columns' : 'Collapse columns';
 }
 
 // ================================================================
