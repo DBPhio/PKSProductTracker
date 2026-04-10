@@ -80,13 +80,12 @@
   th{padding:5px 6px;text-align:left;font-weight:500;font-size:11pt;color:var(--txt2);border:var(--grid);white-space:normal;word-break:break-word;vertical-align:top;overflow:hidden;position:relative;font-family:var(--aptos);line-height:1.3;background:var(--hdr);}
   th.cc{text-align:center;vertical-align:middle;}
   th.cn{text-align:center;color:var(--txt3);vertical-align:middle;}
-  th.ca{color:var(--green-txt);background:var(--calc-bg);text-align:center;position:sticky;z-index:2;}
+  th.ca{color:var(--green-txt);background:var(--calc-bg);text-align:center;}
   td{padding:4px 6px;border:var(--grid);color:var(--txt);vertical-align:top;font-family:var(--aptos);font-size:var(--fs);word-break:break-word;white-space:normal;overflow:hidden;background:var(--bg);}
   td.cc{text-align:center;vertical-align:middle;}
   td.cn{text-align:center;color:var(--txt3);position:relative;vertical-align:middle;background:var(--bg2);}
-  td.ca{text-align:center;background:var(--calc-bg);color:var(--txt3);vertical-align:middle;position:sticky;z-index:1;}
+  td.ca{text-align:center;background:var(--calc-bg);color:var(--txt3);vertical-align:middle;}
   td.ca.hv{color:var(--green-txt);font-weight:500;}
-  .sticky-left-shadow{box-shadow:-4px 0 8px rgba(0,0,0,0.45);}
   tr.done td{color:var(--done-txt);text-decoration:line-through;background:var(--done-bg);}
   tr.done td.cc,tr.done td.ca{text-decoration:none;}
   tr:hover td{background:#323232;}
@@ -128,7 +127,13 @@
   .sterility-counter.ok{color:var(--green-txt);}
   .sterility-counter.warn{color:#f0c040;}
   .sterility-counter.expired{color:#f08080;}
-  .nosel,.nosel *{user-select:none!important;}
+  .panel-table-area{display:flex;flex:1;overflow:hidden;}
+  .panel-scroll-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+  .calc-panel{flex-shrink:0;display:flex;flex-direction:column;border-left:2px solid var(--green);background:var(--bg);}
+  .calc-panel .thead-wrap{overflow:hidden;border-bottom:1px solid var(--border);}
+  .calc-body-wrap{flex:1;overflow:hidden;}
+  .calc-body-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;}
+    .nosel,.nosel *{user-select:none!important;}
   ::-webkit-scrollbar{width:8px;height:8px;}
   ::-webkit-scrollbar-track{background:var(--bg2);}
   ::-webkit-scrollbar-thumb{background:#555;border-radius:4px;}
@@ -188,19 +193,32 @@
           <button class="btn" onclick="addRow('imm')">+ Row</button>
         </div>
       </div>
-      <div class="thead-wrap" id="imm-thead-wrap">
-        <table id="imm-htable"><thead><tr>
-          <th class="cc"><input type="checkbox" id="imm-sa" onchange="toggleAll('imm',this)"></th>
-          <th class="cn">#</th>
-          <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
-          <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
-          <th class="ca">Days Issued to Return</th>
-          <th class="ca">Days Returned to Review</th>
-          <th class="ca">Days not Dispositioned</th>
-        </tr></thead></table>
-      </div>
-      <div class="tbody-wrap" id="imm-tbody-wrap" onscroll="syncScroll('imm',this)">
-        <table id="imm-table"><tbody id="imm-tbody"></tbody></table>
+      <div class="panel-table-area">
+        <div class="panel-scroll-area">
+          <div class="thead-wrap" id="imm-thead-wrap">
+            <table id="imm-htable"><thead><tr>
+              <th class="cc"><input type="checkbox" id="imm-sa" onchange="toggleAll('imm',this)"></th>
+              <th class="cn">#</th>
+              <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
+              <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
+            </tr></thead></table>
+          </div>
+          <div class="tbody-wrap" id="imm-tbody-wrap" onscroll="syncScroll('imm',this);syncCalcVScroll('imm',this)">
+            <table id="imm-table"><tbody id="imm-tbody"></tbody></table>
+          </div>
+        </div>
+        <div class="calc-panel" id="imm-calc-panel">
+          <div class="thead-wrap">
+            <table id="imm-calc-htable"><thead><tr>
+              <th class="ca">Days Issued to Return</th>
+              <th class="ca">Days Returned to Review</th>
+              <th class="ca">Days not Dispositioned</th>
+            </tr></thead></table>
+          </div>
+          <div class="calc-body-wrap" id="imm-calc-body">
+            <table id="imm-calc-table"><tbody id="imm-calc-tbody"></tbody></table>
+          </div>
+        </div>
       </div>
     </div>
     <div class="v-divider" id="v-divider"></div>
@@ -219,19 +237,32 @@
             <button class="btn" onclick="addRow('prompt')">+ Row</button>
           </div>
         </div>
-        <div class="thead-wrap" id="prompt-thead-wrap">
-          <table id="prompt-htable"><thead><tr>
-            <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
-            <th class="cn">#</th>
-            <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
-            <th>Date Returned</th><th>Sterility Date</th><th>Initial Review Date</th><th>Review Complete Date</th>
-            <th class="ca">Days Issued to Return</th>
-            <th class="ca">Days Returned to Review</th>
-            <th class="ca">Days not Dispositioned</th>
-          </tr></thead></table>
-        </div>
-        <div class="tbody-wrap" id="prompt-tbody-wrap" onscroll="syncScroll('prompt',this)">
-          <table id="prompt-table"><tbody id="prompt-tbody"></tbody></table>
+        <div class="panel-table-area">
+          <div class="panel-scroll-area">
+            <div class="thead-wrap" id="prompt-thead-wrap">
+              <table id="prompt-htable"><thead><tr>
+                <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
+                <th class="cn">#</th>
+                <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
+                <th>Date Returned</th><th>Sterility Date</th><th>Initial Review Date</th><th>Review Complete Date</th>
+              </tr></thead></table>
+            </div>
+            <div class="tbody-wrap" id="prompt-tbody-wrap" onscroll="syncScroll('prompt',this);syncCalcVScroll('prompt',this)">
+              <table id="prompt-table"><tbody id="prompt-tbody"></tbody></table>
+            </div>
+          </div>
+          <div class="calc-panel" id="prompt-calc-panel">
+            <div class="thead-wrap">
+              <table id="prompt-calc-htable"><thead><tr>
+                <th class="ca">Days Issued to Return</th>
+                <th class="ca">Days Returned to Review</th>
+                <th class="ca">Days not Dispositioned</th>
+              </tr></thead></table>
+            </div>
+            <div class="calc-body-wrap" id="prompt-calc-body">
+              <table id="prompt-calc-table"><tbody id="prompt-calc-tbody"></tbody></table>
+            </div>
+          </div>
         </div>
       </div>
       <div class="h-divider" id="h-divider"></div>
@@ -249,19 +280,32 @@
             <button class="btn" onclick="addRow('biofire')">+ Row</button>
           </div>
         </div>
-        <div class="thead-wrap" id="biofire-thead-wrap">
-          <table id="biofire-htable"><thead><tr>
-            <th class="cc"><input type="checkbox" id="biofire-sa" onchange="toggleAll('biofire',this)"></th>
-            <th class="cn">#</th>
-            <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
-            <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
-            <th class="ca">Days Issued to Return</th>
-            <th class="ca">Days Returned to Review</th>
-            <th class="ca">Days not Dispositioned</th>
-          </tr></thead></table>
-        </div>
-        <div class="tbody-wrap" id="biofire-tbody-wrap" onscroll="syncScroll('biofire',this)">
-          <table id="biofire-table"><tbody id="biofire-tbody"></tbody></table>
+        <div class="panel-table-area">
+          <div class="panel-scroll-area">
+            <div class="thead-wrap" id="biofire-thead-wrap">
+              <table id="biofire-htable"><thead><tr>
+                <th class="cc"><input type="checkbox" id="biofire-sa" onchange="toggleAll('biofire',this)"></th>
+                <th class="cn">#</th>
+                <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
+                <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
+              </tr></thead></table>
+            </div>
+            <div class="tbody-wrap" id="biofire-tbody-wrap" onscroll="syncScroll('biofire',this);syncCalcVScroll('biofire',this)">
+              <table id="biofire-table"><tbody id="biofire-tbody"></tbody></table>
+            </div>
+          </div>
+          <div class="calc-panel" id="biofire-calc-panel">
+            <div class="thead-wrap">
+              <table id="biofire-calc-htable"><thead><tr>
+                <th class="ca">Days Issued to Return</th>
+                <th class="ca">Days Returned to Review</th>
+                <th class="ca">Days not Dispositioned</th>
+              </tr></thead></table>
+            </div>
+            <div class="calc-body-wrap" id="biofire-calc-body">
+              <table id="biofire-calc-table"><tbody id="biofire-calc-tbody"></tbody></table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -598,15 +642,29 @@ function syncScroll(tid, bw) {
   document.getElementById(tid + '-thead-wrap').scrollLeft = bw.scrollLeft;
 }
 
+function syncCalcVScroll(tid, el) {
+  var cb = document.getElementById(tid + '-calc-body');
+  if (cb) cb.scrollTop = el.scrollTop;
+}
+
+function syncCalcRowHeights(tid) {
+  var mainRows = document.querySelectorAll('#' + tid + '-tbody tr');
+  var calcRows = document.querySelectorAll('#' + tid + '-calc-tbody tr');
+  var len = Math.min(mainRows.length, calcRows.length);
+  for (var i = 0; i < len; i++) {
+    var h = mainRows[i].getBoundingClientRect().height;
+    if (h > 0) {
+      mainRows[i].style.height = h + 'px';
+      calcRows[i].style.height = h + 'px';
+    }
+  }
+}
+
 // ================================================================
 //  ROW HTML
 // ================================================================
 
 function rowHTML(tid, row, i, isDel) {
-  // Active rows: calculate live. Dispositioned rows: show frozen snapshot (set at time of dispositioning).
-  var dIR = isDel ? (row._snapIR !== undefined ? row._snapIR : null) : dBetween(row.dateIssued, row.dateReturned);
-  var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.reviewCompleteDate);
-  var dND = isDel ? (row._snapND !== undefined ? row._snapND : null) : dSince(row.dateReturned);
   var rh  = isDel ? '' : '<div class="row-rh" onmousedown="startRowResize(event,\'' + tid + '\',' + row.id + ')"></div>';
   var sk  = row.strikes || {};
   var dh  = isDel ? '' : '<div class="drag-handle" onmousedown="startRowDrag(event,\'' + tid + '\',' + row.id + ')" title="Drag to reorder"><span></span><span></span><span></span></div>';
@@ -646,9 +704,16 @@ function rowHTML(tid, row, i, isDel) {
         counter + '</td>';
     })() : '') +
     dateTd('initialReviewDate', '<input type="date" class="di" value="' + esc(row.initialReviewDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'initialReviewDate\',this.value)">') +
-    dateTd('reviewCompleteDate', '<input type="date" class="di" value="' + esc(row.reviewCompleteDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'reviewCompleteDate\',this.value)">') +
-    cCell(dIR) + cCell(dRR) + cCell(dND)
+    dateTd('reviewCompleteDate', '<input type="date" class="di" value="' + esc(row.reviewCompleteDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'reviewCompleteDate\',this.value)">') 
   );
+}
+
+// Calc columns only — rendered into the separate fixed calc panel
+function calcRowHTML(tid, row, isDel) {
+  var dIR = isDel ? (row._snapIR !== undefined ? row._snapIR : null) : dBetween(row.dateIssued, row.dateReturned);
+  var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.reviewCompleteDate);
+  var dND = isDel ? (row._snapND !== undefined ? row._snapND : null) : dSince(row.dateReturned);
+  return cCell(dIR) + cCell(dRR) + cCell(dND);
 }
 
 // ================================================================
@@ -657,8 +722,9 @@ function rowHTML(tid, row, i, isDel) {
 
 function render(tid, remoteIds) {
   remoteIds = remoteIds || [];
-  var s     = T[tid];
-  var tbody = document.getElementById(tid + '-tbody');
+  var s          = T[tid];
+  var tbody      = document.getElementById(tid + '-tbody');
+  var calcTbody  = document.getElementById(tid + '-calc-tbody');
   if (!tbody) return;
 
   var anyChecked = s.rows.some(function(r){ return r.done; });
@@ -673,12 +739,13 @@ function render(tid, remoteIds) {
   } else {
     dbadge.style.display = 'none';
   }
-  // Restore button is now in the Dispositioned divider — hide the header one
   rbtn.style.display = 'none';
 
   tbody.innerHTML = '';
+  if (calcTbody) calcTbody.innerHTML = '';
 
   s.rows.forEach(function(row, i) {
+    // Main row
     var tr = document.createElement('tr');
     if (row.done) tr.classList.add('done');
     if (s.restored.has(row.id)) tr.classList.add('res');
@@ -687,32 +754,58 @@ function render(tid, remoteIds) {
     tr.innerHTML  = rowHTML(tid, row, i, false);
     if (s.rowHeights[row.id]) tr.style.height = s.rowHeights[row.id] + 'px';
     tbody.appendChild(tr);
+    // Calc row
+    if (calcTbody) {
+      var ctr = document.createElement('tr');
+      if (row.done) ctr.classList.add('done');
+      if (remoteIds.indexOf(row.id) !== -1) ctr.classList.add('remote-update');
+      ctr.dataset.id = row.id;
+      ctr.innerHTML  = calcRowHTML(tid, row, false);
+      if (s.rowHeights[row.id]) ctr.style.height = s.rowHeights[row.id] + 'px';
+      calcTbody.appendChild(ctr);
+    }
   });
 
   if (s.deleted.length > 0) {
     var anyPermSel = s.permSelected.size > 0;
+    var mainCols   = T[tid].colWidths.length - 3;
+    // Main divider
     var divider = document.createElement('tr');
     divider.className = 'divrow';
-    divider.innerHTML = '<td colspan="' + T[tid].colWidths.length + '"><div class="divrow-inner">' +
+    divider.innerHTML = '<td colspan="' + mainCols + '"><div class="divrow-inner">' +
       '<span>Dispositioned (' + s.deleted.length + ')</span>' +
       '<div style="display:flex;gap:6px;align-items:center;">' +
       (anyPermSel
         ? '<button class="btn btn-r" style="font-size:10pt;" onclick="restoreAll(\'' + tid + '\')">Restore ' + s.permSelected.size + ' selected</button>' +
           '<button class="btn-perm-del" onclick="permDeleteSelected(\'' + tid + '\')">Delete ' + s.permSelected.size + ' permanently</button>'
         : '<button class="btn btn-r" style="font-size:10pt;opacity:0.5;" onclick="restoreAll(\'' + tid + '\')" title="Check rows below to restore specific ones, or click to restore all">Restore all</button>') +
-      '</div>' +
-      '</div></td>';
+      '</div></div></td>';
     tbody.appendChild(divider);
+    // Calc divider (empty, just matches height)
+    if (calcTbody) {
+      var calcDiv = document.createElement('tr');
+      calcDiv.className = 'divrow';
+      calcDiv.innerHTML = '<td colspan="3"></td>';
+      calcTbody.appendChild(calcDiv);
+    }
     s.deleted.forEach(function(row, i) {
+      var opacity = s.permSelected.has(row.id) ? '0.85' : '0.5';
+      // Main del row
       var tr = document.createElement('tr');
-      tr.style.opacity = '0.5';
+      tr.style.opacity = opacity;
       tr.dataset.delid = row.id;
-      if (s.permSelected.has(row.id)) {
-        tr.classList.add('del-row-selected');
-        tr.style.opacity = '0.85';
-      }
+      if (s.permSelected.has(row.id)) tr.classList.add('del-row-selected');
       tr.innerHTML = rowHTML(tid, row, s.rows.length + i, true);
       tbody.appendChild(tr);
+      // Calc del row
+      if (calcTbody) {
+        var ctr = document.createElement('tr');
+        ctr.style.opacity = opacity;
+        ctr.dataset.id = row.id;
+        if (s.permSelected.has(row.id)) ctr.classList.add('del-row-selected');
+        ctr.innerHTML = calcRowHTML(tid, row, true);
+        calcTbody.appendChild(ctr);
+      }
     });
   }
 
@@ -725,6 +818,8 @@ function render(tid, remoteIds) {
   }
 
   applyColWidths(tid);
+  // Sync row heights between main and calc tables after layout
+  requestAnimationFrame(function(){ syncCalcRowHeights(tid); });
 }
 
 // ================================================================
@@ -825,46 +920,56 @@ function updHtml(el) {
 // ================================================================
 
 function applyColWidths(tid) {
-  var ws    = T[tid].colWidths;
-  var total = ws.reduce(function(a,b){ return a+b; }, 0);
+  var ws      = T[tid].colWidths;
+  var len     = ws.length;
+  var mainWs  = ws.slice(0, len - 3);
+  var calcWs  = ws.slice(len - 3);
+  var mainTotal = mainWs.reduce(function(a,b){ return a+b; }, 0);
+  var calcTotal = calcWs.reduce(function(a,b){ return a+b; }, 0);
+
+  // Main tables (data cols only)
   ['htable','table'].forEach(function(sfx) {
     var tbl = document.getElementById(tid + '-' + sfx);
     if (!tbl) return;
-    tbl.style.width = total + 'px';
+    tbl.style.width = mainTotal + 'px';
     var cg = tbl.querySelector('colgroup');
     if (!cg) { cg = document.createElement('colgroup'); tbl.insertBefore(cg, tbl.firstChild); }
-    while (cg.children.length < ws.length) cg.appendChild(document.createElement('col'));
-    ws.forEach(function(w,i){ cg.children[i].style.width = w + 'px'; });
+    while (cg.children.length < mainWs.length) cg.appendChild(document.createElement('col'));
+    while (cg.children.length > mainWs.length) cg.removeChild(cg.lastChild);
+    mainWs.forEach(function(w,i){ cg.children[i].style.width = w + 'px'; });
   });
 
-  // Freeze the last 3 columns (the green calc columns) to the right edge
-  // right offset = sum of widths of all columns to the right of each sticky col
-  var len = ws.length;
-  var rightOf = [0, ws[len-1], ws[len-1] + ws[len-2]]; // offsets for cols len-1, len-2, len-3
-  var caSelectors = [
-    ['#' + tid + '-htable thead th:nth-child(' + len + ')',       '#' + tid + '-tbody td:nth-child(' + len + ')'],
-    ['#' + tid + '-htable thead th:nth-child(' + (len-1) + ')',   '#' + tid + '-tbody td:nth-child(' + (len-1) + ')'],
-    ['#' + tid + '-htable thead th:nth-child(' + (len-2) + ')',   '#' + tid + '-tbody td:nth-child(' + (len-2) + ')']
-  ];
-  caSelectors.forEach(function(pair, idx) {
-    var right = rightOf[idx] + 'px';
-    var addShadow = (idx === 2); // leftmost sticky col gets the shadow
-    [pair[0], pair[1]].forEach(function(sel) {
-      document.querySelectorAll(sel).forEach(function(el) {
-        el.style.right = right;
-        if (addShadow) el.classList.add('sticky-left-shadow');
-        else el.classList.remove('sticky-left-shadow');
-      });
-    });
+  // Calc tables (3 calc cols)
+  ['calc-htable','calc-table'].forEach(function(sfx) {
+    var tbl = document.getElementById(tid + '-' + sfx);
+    if (!tbl) return;
+    tbl.style.width = calcTotal + 'px';
+    var cg = tbl.querySelector('colgroup');
+    if (!cg) { cg = document.createElement('colgroup'); tbl.insertBefore(cg, tbl.firstChild); }
+    while (cg.children.length < 3) cg.appendChild(document.createElement('col'));
+    calcWs.forEach(function(w,i){ cg.children[i].style.width = w + 'px'; });
   });
+
+  // Fix calc panel width so it doesn't flex
+  var panel = document.getElementById(tid + '-calc-panel');
+  if (panel) panel.style.width = calcTotal + 'px';
 }
 
 function injectColResizeHandles() {
   IDS.forEach(function(tid) {
+    var len = T[tid].colWidths.length;
+    // Data col handles
     document.querySelectorAll('#' + tid + '-htable thead th').forEach(function(th, i) {
       var h = document.createElement('div');
       h.className = 'col-rh';
       h.addEventListener('mousedown', function(e){ startColResize(e, tid, i); });
+      th.appendChild(h);
+    });
+    // Calc col handles (map back to the last 3 indices in colWidths)
+    document.querySelectorAll('#' + tid + '-calc-htable thead th').forEach(function(th, i) {
+      var h = document.createElement('div');
+      h.className = 'col-rh';
+      h.addEventListener('mousedown', function(e){ startColResize(e, tid, len - 3 + i); });
       th.appendChild(h);
     });
   });
@@ -1033,6 +1138,8 @@ document.addEventListener('mousemove', function(e) {
     T[dragging.tid].rowHeights[dragging.rowId] = newH;
     var tr = document.querySelector('#' + dragging.tid + '-tbody tr[data-id="' + dragging.rowId + '"]');
     if (tr) tr.style.height = newH + 'px';
+    var ctr = document.querySelector('#' + dragging.tid + '-calc-tbody tr[data-id="' + dragging.rowId + '"]');
+    if (ctr) ctr.style.height = newH + 'px';
   } else if (dragging.type === 'vpanel') {
     var newW = Math.max(150, Math.min(dragging.totalW - 155, dragging.startW + (e.clientX - dragging.startX)));
     document.getElementById('left-panel').style.width = newW + 'px';
