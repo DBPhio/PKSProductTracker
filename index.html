@@ -961,7 +961,7 @@ function applyColWidths(tid) {
     tbl.style.width = calcTotal + 'px';
     var cg = tbl.querySelector('colgroup');
     if (!cg) { cg = document.createElement('colgroup'); tbl.insertBefore(cg, tbl.firstChild); }
-    while (cg.children.length < 3) cg.appendChild(document.createElement('col'));
+    while (cg.children.length < calcWs.length) cg.appendChild(document.createElement('col'));
     calcWs.forEach(function(w,i){ cg.children[i].style.width = w + 'px'; });
   });
 
