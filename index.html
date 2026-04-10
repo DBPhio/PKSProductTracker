@@ -80,12 +80,13 @@
   th{padding:5px 6px;text-align:left;font-weight:500;font-size:11pt;color:var(--txt2);border:var(--grid);white-space:normal;word-break:break-word;vertical-align:top;overflow:hidden;position:relative;font-family:var(--aptos);line-height:1.3;background:var(--hdr);}
   th.cc{text-align:center;vertical-align:middle;}
   th.cn{text-align:center;color:var(--txt3);vertical-align:middle;}
-  th.ca{color:var(--green-txt);background:var(--calc-bg);text-align:center;}
+  th.ca{color:var(--green-txt);background:var(--calc-bg);text-align:center;position:sticky;z-index:2;}
   td{padding:4px 6px;border:var(--grid);color:var(--txt);vertical-align:top;font-family:var(--aptos);font-size:var(--fs);word-break:break-word;white-space:normal;overflow:hidden;background:var(--bg);}
   td.cc{text-align:center;vertical-align:middle;}
   td.cn{text-align:center;color:var(--txt3);position:relative;vertical-align:middle;background:var(--bg2);}
-  td.ca{text-align:center;background:var(--calc-bg);color:var(--txt3);vertical-align:middle;}
+  td.ca{text-align:center;background:var(--calc-bg);color:var(--txt3);vertical-align:middle;position:sticky;z-index:1;}
   td.ca.hv{color:var(--green-txt);font-weight:500;}
+  .sticky-left-shadow{box-shadow:-4px 0 8px rgba(0,0,0,0.45);}
   tr.done td{color:var(--done-txt);text-decoration:line-through;background:var(--done-bg);}
   tr.done td.cc,tr.done td.ca{text-decoration:none;}
   tr:hover td{background:#323232;}
@@ -834,6 +835,27 @@ function applyColWidths(tid) {
     if (!cg) { cg = document.createElement('colgroup'); tbl.insertBefore(cg, tbl.firstChild); }
     while (cg.children.length < ws.length) cg.appendChild(document.createElement('col'));
     ws.forEach(function(w,i){ cg.children[i].style.width = w + 'px'; });
+  });
+
+  // Freeze the last 3 columns (the green calc columns) to the right edge
+  // right offset = sum of widths of all columns to the right of each sticky col
+  var len = ws.length;
+  var rightOf = [0, ws[len-1], ws[len-1] + ws[len-2]]; // offsets for cols len-1, len-2, len-3
+  var caSelectors = [
+    ['#' + tid + '-htable thead th:nth-child(' + len + ')',       '#' + tid + '-tbody td:nth-child(' + len + ')'],
+    ['#' + tid + '-htable thead th:nth-child(' + (len-1) + ')',   '#' + tid + '-tbody td:nth-child(' + (len-1) + ')'],
+    ['#' + tid + '-htable thead th:nth-child(' + (len-2) + ')',   '#' + tid + '-tbody td:nth-child(' + (len-2) + ')']
+  ];
+  caSelectors.forEach(function(pair, idx) {
+    var right = rightOf[idx] + 'px';
+    var addShadow = (idx === 2); // leftmost sticky col gets the shadow
+    [pair[0], pair[1]].forEach(function(sel) {
+      document.querySelectorAll(sel).forEach(function(el) {
+        el.style.right = right;
+        if (addShadow) el.classList.add('sticky-left-shadow');
+        else el.classList.remove('sticky-left-shadow');
+      });
+    });
   });
 }
 
