@@ -199,7 +199,7 @@
             <table id="imm-htable"><thead><tr>
               <th class="cc"><input type="checkbox" id="imm-sa" onchange="toggleAll('imm',this)"></th>
               <th class="cn">#</th>
-              <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
+              <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
               <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
             </tr></thead></table>
           </div>
@@ -243,7 +243,7 @@
               <table id="prompt-htable"><thead><tr>
                 <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
                 <th class="cn">#</th>
-                <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
+                <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
                 <th>Date Returned</th><th>Sterility Date</th><th>Initial Review Date</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
@@ -286,7 +286,7 @@
               <table id="biofire-htable"><thead><tr>
                 <th class="cc"><input type="checkbox" id="biofire-sa" onchange="toggleAll('biofire',this)"></th>
                 <th class="cn">#</th>
-                <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
+                <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
                 <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
@@ -332,8 +332,8 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W       = [28,26,108,80,90,76,108,108,108,82,90,88];      // 12 cols (IMM. / BioFire)
-const DEFAULT_COL_W_PROMPT = [28,26,108,80,90,76,108,108,108,108,82,90,88]; // 13 cols (Prompt + Sterility Date)
+const DEFAULT_COL_W       = [28,26,108,108,80,90,76,108,108,108,82,90,88];     // 13 cols (IMM. / BioFire)
+const DEFAULT_COL_W_PROMPT = [28,26,108,108,80,90,76,108,108,108,108,82,90,88]; // 14 cols (Prompt + Sterility Date)
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -525,7 +525,7 @@ function setSyncStatus(state) {
 // ================================================================
 
 function mkRow(id) {
-  return { id:id, dateIssued:'', lotNumbers:'', erLirNumber:'', ncrNumber:'', dateReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', done:false, strikes:{} };
+  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', erLirNumber:'', ncrNumber:'', dateReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', done:false, strikes:{} };
 }
 
 // ── Strike mode ──────────────────────────────────────────────
@@ -688,6 +688,7 @@ function rowHTML(tid, row, i, isDel) {
     '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'toggleRow(\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
     '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
     dateTd('dateIssued',   '<input type="date" class="di" value="' + esc(row.dateIssued)   + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateIssued\',this.value)">') +
+    dateTd('dateManufactured', '<input type="date" class="di" value="' + esc(row.dateManufactured) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateManufactured\',this.value)">') +
     textTd('lotNumbers',   row.lotNumbers,  'Lot numbers') +
     textTd('erLirNumber',  row.erLirNumber, 'ER/LIR number') +
     textTd('ncrNumber',    row.ncrNumber,   'NCR number') +
