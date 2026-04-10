@@ -127,6 +127,12 @@
   .sterility-counter.ok{color:var(--green-txt);}
   .sterility-counter.warn{color:#f0c040;}
   .sterility-counter.expired{color:#f08080;}
+  .calc-panel-toggle{width:100%;padding:4px 0;background:transparent;border:none;border-bottom:1px solid var(--border);cursor:pointer;color:var(--green-txt);font-size:10pt;font-family:var(--aptos);display:flex;align-items:center;justify-content:center;gap:4px;flex-shrink:0;transition:background .15s;}
+  .calc-panel-toggle:hover{background:var(--green-bg);}
+  .calc-panel.collapsed{width:26px!important;}
+  .calc-panel.collapsed .calc-panel-toggle{writing-mode:vertical-rl;text-orientation:mixed;padding:8px 0;height:auto;border-bottom:none;border-top:1px solid var(--border);}
+  .calc-panel.collapsed .thead-wrap,
+  .calc-panel.collapsed .calc-body-wrap{display:none;}
   .panel-table-area{display:flex;flex:1;overflow:hidden;}
   .panel-scroll-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
   .calc-panel{flex-shrink:0;display:flex;flex-direction:column;border-left:2px solid var(--green);background:var(--bg);}
@@ -208,6 +214,7 @@
           </div>
         </div>
         <div class="calc-panel" id="imm-calc-panel">
+          <button class="calc-panel-toggle" onclick="toggleCalcPanel('imm')" id="imm-calc-toggle" title="Collapse/expand columns">◀ Columns</button>
           <div class="thead-wrap">
             <table id="imm-calc-htable"><thead><tr>
               <th class="ca">Days Issued to Return</th>
@@ -244,7 +251,7 @@
                 <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
                 <th class="cn">#</th>
                 <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
-                <th>Date Returned</th><th>Sterility Date</th><th>Initial Review Date</th><th>Review Complete Date</th>
+                <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
             <div class="tbody-wrap" id="prompt-tbody-wrap" onscroll="syncScroll('prompt',this);syncCalcVScroll('prompt',this)">
@@ -252,9 +259,11 @@
             </div>
           </div>
           <div class="calc-panel" id="prompt-calc-panel">
+            <button class="calc-panel-toggle" onclick="toggleCalcPanel('prompt')" id="prompt-calc-toggle" title="Collapse/expand columns">◀ Columns</button>
             <div class="thead-wrap">
               <table id="prompt-calc-htable"><thead><tr>
                 <th class="ca">Days Issued to Return</th>
+                <th class="ca">Sterility Date</th>
                 <th class="ca">Days Returned to Review</th>
                 <th class="ca">Days not Dispositioned</th>
               </tr></thead></table>
@@ -295,6 +304,7 @@
             </div>
           </div>
           <div class="calc-panel" id="biofire-calc-panel">
+            <button class="calc-panel-toggle" onclick="toggleCalcPanel('biofire')" id="biofire-calc-toggle" title="Collapse/expand columns">◀ Columns</button>
             <div class="thead-wrap">
               <table id="biofire-calc-htable"><thead><tr>
                 <th class="ca">Days Issued to Return</th>
@@ -333,7 +343,8 @@ const FIREBASE_CONFIG = {
 
 const IDS = ['imm','prompt','biofire'];
 const DEFAULT_COL_W       = [28,26,108,108,80,90,76,108,108,108,82,90,88];     // 13 cols (IMM. / BioFire)
-const DEFAULT_COL_W_PROMPT = [28,26,108,108,80,90,76,108,108,108,108,82,90,88]; // 14 cols (Prompt + Sterility Date)
+const DEFAULT_COL_W_PROMPT = [28,26,108,108,80,90,76,108,108,108,82,108,90,88]; // 14 cols (Prompt: Sterility Date in calc)
+const CALC_COL_COUNT = { imm: 3, prompt: 4, biofire: 3 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -693,17 +704,6 @@ function rowHTML(tid, row, i, isDel) {
     textTd('erLirNumber',  row.erLirNumber, 'ER/LIR number') +
     textTd('ncrNumber',    row.ncrNumber,   'NCR number') +
     dateTd('dateReturned', '<input type="date" class="di" value="' + esc(row.dateReturned) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReturned\',this.value)">') +
-    (tid === 'prompt' ? (function() {
-      var sd = row.sterilityDate || '';
-      var sdDays = sd ? dSince(sd) : null;
-      var sdCapped = sdDays !== null ? Math.min(sdDays, 14) : null;
-      var cls = sdCapped === null ? '' : (sdCapped >= 14 ? ' expired' : (sdCapped >= 10 ? ' warn' : ' ok'));
-      var counter = sdCapped !== null ? '<span class="sterility-counter' + cls + '">' + sdCapped + ' of 14</span>' : '';
-      var skCls = (sk['sterilityDate'] ? ' cell-struck' : '');
-      return '<td class="strikeable' + skCls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'sterilityDate\')">' +
-        '<input type="date" class="di" value="' + esc(sd) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'sterilityDate\',this.value)">' +
-        counter + '</td>';
-    })() : '') +
     dateTd('initialReviewDate', '<input type="date" class="di" value="' + esc(row.initialReviewDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'initialReviewDate\',this.value)">') +
     dateTd('reviewCompleteDate', '<input type="date" class="di" value="' + esc(row.reviewCompleteDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'reviewCompleteDate\',this.value)">') 
   );
@@ -714,7 +714,20 @@ function calcRowHTML(tid, row, isDel) {
   var dIR = isDel ? (row._snapIR !== undefined ? row._snapIR : null) : dBetween(row.dateIssued, row.dateReturned);
   var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.reviewCompleteDate);
   var dND = isDel ? (row._snapND !== undefined ? row._snapND : null) : dSince(row.dateReturned);
-  return cCell(dIR) + cCell(dRR) + cCell(dND);
+  var sterCell = '';
+  if (tid === 'prompt') {
+    var sd    = row.sterilityDate || '';
+    var sdD   = sd ? dSince(sd) : null;
+    var sdCap = sdD !== null ? Math.min(sdD, 14) : null;
+    var scls  = sdCap === null ? '' : (sdCap >= 14 ? ' expired' : (sdCap >= 10 ? ' warn' : ' ok'));
+    var ctr   = sdCap !== null ? '<span class="sterility-counter' + scls + '">' + sdCap + ' of 14</span>' : '';
+    var sk    = row.strikes || {};
+    var skCls = sk['sterilityDate'] ? ' cell-struck' : '';
+    sterCell  = '<td class="ca strikeable' + skCls + '" onclick="handleCellStrike(event,\'prompt\',' + row.id + ',\'sterilityDate\')">' +
+      '<input type="date" class="di" value="' + esc(sd) + '" onchange="upd(\'prompt\',' + row.id + ',\'sterilityDate\',this.value)">' +
+      ctr + '</td>';
+  }
+  return cCell(dIR) + sterCell + cCell(dRR) + cCell(dND);
 }
 
 // ================================================================
@@ -921,12 +934,13 @@ function updHtml(el) {
 // ================================================================
 
 function applyColWidths(tid) {
-  var ws      = T[tid].colWidths;
-  var len     = ws.length;
-  var mainWs  = ws.slice(0, len - 3);
-  var calcWs  = ws.slice(len - 3);
-  var mainTotal = mainWs.reduce(function(a,b){ return a+b; }, 0);
-  var calcTotal = calcWs.reduce(function(a,b){ return a+b; }, 0);
+  var ws         = T[tid].colWidths;
+  var calcCount  = CALC_COL_COUNT[tid] || 3;
+  var len        = ws.length;
+  var mainWs     = ws.slice(0, len - calcCount);
+  var calcWs     = ws.slice(len - calcCount);
+  var mainTotal  = mainWs.reduce(function(a,b){ return a+b; }, 0);
+  var calcTotal  = calcWs.reduce(function(a,b){ return a+b; }, 0);
 
   // Main tables (data cols only)
   ['htable','table'].forEach(function(sfx) {
@@ -958,22 +972,30 @@ function applyColWidths(tid) {
 
 function injectColResizeHandles() {
   IDS.forEach(function(tid) {
-    var len = T[tid].colWidths.length;
-    // Data col handles
+    var len       = T[tid].colWidths.length;
+    var calcCount = CALC_COL_COUNT[tid] || 3;
     document.querySelectorAll('#' + tid + '-htable thead th').forEach(function(th, i) {
       var h = document.createElement('div');
       h.className = 'col-rh';
       h.addEventListener('mousedown', function(e){ startColResize(e, tid, i); });
       th.appendChild(h);
     });
-    // Calc col handles (map back to the last 3 indices in colWidths)
     document.querySelectorAll('#' + tid + '-calc-htable thead th').forEach(function(th, i) {
       var h = document.createElement('div');
       h.className = 'col-rh';
-      h.addEventListener('mousedown', function(e){ startColResize(e, tid, len - 3 + i); });
+      h.addEventListener('mousedown', function(e){ startColResize(e, tid, len - calcCount + i); });
       th.appendChild(h);
     });
   });
+}
+
+function toggleCalcPanel(tid) {
+  var panel  = document.getElementById(tid + '-calc-panel');
+  var btn    = document.getElementById(tid + '-calc-toggle');
+  if (!panel) return;
+  var collapsed = panel.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '▶' : '◀ Columns';
+  btn.title       = collapsed ? 'Expand columns' : 'Collapse columns';
 }
 
 // ================================================================
