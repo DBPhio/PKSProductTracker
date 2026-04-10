@@ -262,8 +262,8 @@
             <button class="calc-panel-toggle" onclick="toggleCalcPanel('prompt')" id="prompt-calc-toggle" title="Collapse/expand columns">◀ Columns</button>
             <div class="thead-wrap">
               <table id="prompt-calc-htable"><thead><tr>
-                <th class="ca">Days Issued to Return</th>
                 <th class="ca">Sterility Date</th>
+                <th class="ca">Days Issued to Return</th>
                 <th class="ca">Days Returned to Review</th>
                 <th class="ca">Days not Dispositioned</th>
               </tr></thead></table>
@@ -343,7 +343,7 @@ const FIREBASE_CONFIG = {
 
 const IDS = ['imm','prompt','biofire'];
 const DEFAULT_COL_W       = [28,26,108,108,80,90,76,108,108,108,82,90,88];     // 13 cols (IMM. / BioFire)
-const DEFAULT_COL_W_PROMPT = [28,26,108,108,80,90,76,108,108,108,82,108,90,88]; // 14 cols (Prompt: Sterility Date in calc)
+const DEFAULT_COL_W_PROMPT = [28,26,108,108,80,90,76,108,108,108,108,82,90,88]; // 14 cols (Prompt: Sterility Date in calc)
 const CALC_COL_COUNT = { imm: 3, prompt: 4, biofire: 3 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
@@ -727,7 +727,7 @@ function calcRowHTML(tid, row, isDel) {
       '<input type="date" class="di" value="' + esc(sd) + '" onchange="upd(\'prompt\',' + row.id + ',\'sterilityDate\',this.value)">' +
       ctr + '</td>';
   }
-  return cCell(dIR) + sterCell + cCell(dRR) + cCell(dND);
+  return sterCell + cCell(dIR) + cCell(dRR) + cCell(dND);
 }
 
 // ================================================================
