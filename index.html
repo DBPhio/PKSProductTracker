@@ -6,9 +6,9 @@
 <title>QA Product Tracker</title>
 
 <!-- Firebase compat SDKs (standard scripts, no module imports needed) -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js" onerror="window._fbLoadErr=true"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js" onerror="window._fbLoadErr=true"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js" onerror="window._fbLoadErr=true"></script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500&display=swap');
@@ -105,9 +105,6 @@
   tr.done .ci,tr.done .di{color:var(--done-txt);}
   .flash{animation:flashRow .35s ease;}
   @keyframes flashRow{0%{background:var(--red-bg);}100%{}}
-  .sp{display:inline-block;font-size:11pt;padding:2px 6px;border-radius:99px;font-weight:500;font-family:var(--aptos);text-align:center;}
-  .sp-t{background:var(--bg2);color:var(--txt2);border:1px solid var(--border);}
-  .sp-d{background:var(--green-bg);color:var(--green-txt);border:1px solid var(--green);}
   .divrow td{background:var(--del-bg);font-size:11pt;color:var(--del-txt);font-weight:500;padding:3px 6px;text-decoration:none!important;border:var(--grid);font-family:var(--aptos);}
   .divrow-inner{display:flex;align-items:center;justify-content:space-between;gap:8px;}
   .btn-perm-del{font-size:10pt;padding:2px 10px;border-radius:4px;border:1px solid var(--red-border);background:transparent;color:var(--red-txt);cursor:pointer;font-family:var(--aptos);white-space:nowrap;transition:background .15s;}
@@ -195,7 +192,6 @@
           <th class="ca">Days Issued to Return</th>
           <th class="ca">Days Returned to Review</th>
           <th class="ca">Days not Dispositioned</th>
-          
         </tr></thead></table>
       </div>
       <div class="tbody-wrap" id="imm-tbody-wrap" onscroll="syncScroll('imm',this)">
@@ -227,7 +223,6 @@
             <th class="ca">Days Issued to Return</th>
             <th class="ca">Days Returned to Review</th>
             <th class="ca">Days not Dispositioned</th>
-            
           </tr></thead></table>
         </div>
         <div class="tbody-wrap" id="prompt-tbody-wrap" onscroll="syncScroll('prompt',this)">
@@ -258,7 +253,6 @@
             <th class="ca">Days Issued to Return</th>
             <th class="ca">Days Returned to Review</th>
             <th class="ca">Days not Dispositioned</th>
-            
           </tr></thead></table>
         </div>
         <div class="tbody-wrap" id="biofire-tbody-wrap" onscroll="syncScroll('biofire',this)">
@@ -271,7 +265,7 @@
 
 <script>
 // ================================================================
-//  CONFIG  — edit APP_PASSWORD and FIREBASE_CONFIG before uploading
+//  CONFIG  — update FIREBASE_CONFIG before uploading
 // ================================================================
 
 const FIREBASE_CONFIG = {
@@ -309,10 +303,6 @@ var saveTimer    = null;
 var fbDatabase   = null;  // assigned after Firebase init
 
 // ================================================================
-//  GATE
-// ================================================================
-
-// ================================================================
 //  AUTH
 // ================================================================
 
@@ -344,7 +334,20 @@ function showView(state, user) {
 }
 
 window.addEventListener('load', function() {
-  firebase.initializeApp(FIREBASE_CONFIG);
+  if (window._fbLoadErr || typeof firebase === 'undefined') {
+    document.getElementById('view-signed-out').innerHTML =
+      '<div class="gate-box">' +
+      '<div class="gate-title">QA Product Tracker</div>' +
+      '<div class="gate-sub" style="color:#f08080;">Could not load Firebase.<br>Usually caused by an ad blocker or firewall blocking <strong>gstatic.com</strong>.<br><br>Try disabling ad blockers or opening in a private window.</div>' +
+      '</div>';
+    document.getElementById('view-signed-out').style.display = 'flex';
+    return;
+  }
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+  } catch(e) {
+    if (e.code !== 'app/duplicate-app') console.error('Firebase init error:', e);
+  }
   fbDatabase = firebase.database();
 
   firebase.auth().onAuthStateChanged(function(user) {
@@ -476,7 +479,6 @@ function mkRow(id) {
 
 // ── Strike mode ──────────────────────────────────────────────
 var strikeModeOn = false;
-var STRIKE_FIELDS = ['dateIssued','dateReturned','dateReviewed'];
 
 function toggleStrikeMode() {
   strikeModeOn = !strikeModeOn;
@@ -583,12 +585,6 @@ function esc(s) {
 function cCell(v) {
   if (v === null) return '<td class="ca" style="color:var(--txt3);">—</td>';
   return '<td class="ca hv">' + v + 'd</td>';
-}
-
-function autoH(el) {
-  if (!el) return;
-  el.style.height = 'auto';
-  el.style.height = el.scrollHeight + 'px';
 }
 
 function syncScroll(tid, bw) {
@@ -709,9 +705,6 @@ function render(tid, remoteIds) {
     sa.indeterminate = s.rows.some(function(r){ return r.done; }) && !sa.checked;
   }
 
-  tbody.querySelectorAll('.ci').forEach(function(el){
-    // nothing — contenteditable divs auto-size naturally
-  });
   applyColWidths(tid);
 }
 
@@ -797,13 +790,7 @@ function upd(tid, id, field, value) {
           s.deleted.find(function(r){ return r.id === id; });
   if (r) { r[field] = value; render(tid); scheduleSave(); }
 }
-function updText(tid, id, field, value) {
-  var s = T[tid];
-  var r = s.rows.find(function(r){ return r.id === id; }) ||
-          s.deleted.find(function(r){ return r.id === id; });
-  if (r) r[field] = value;
-}
-// Contenteditable divs: save innerHTML so <s> tags are preserved
+// Contenteditable divs: save innerHTML so struck spans are preserved
 function updHtml(el) {
   var tid   = el.dataset.tid;
   var rowId = parseInt(el.dataset.rowid, 10);
