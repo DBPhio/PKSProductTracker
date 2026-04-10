@@ -123,6 +123,10 @@
   tr.drop-above td{border-top:2px solid var(--green)!important;}
   tr.drop-below td{border-bottom:2px solid var(--green)!important;}
   .drag-ghost{position:fixed;pointer-events:none;z-index:9999;background:var(--hdr);border:1px solid var(--green);border-radius:4px;padding:4px 10px;font-size:11pt;font-family:var(--aptos);color:var(--green-txt);white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
+  .sterility-counter{display:block;text-align:center;font-size:9pt;margin-top:3px;font-family:var(--aptos);font-weight:500;}
+  .sterility-counter.ok{color:var(--green-txt);}
+  .sterility-counter.warn{color:#f0c040;}
+  .sterility-counter.expired{color:#f08080;}
   .nosel,.nosel *{user-select:none!important;}
   ::-webkit-scrollbar{width:8px;height:8px;}
   ::-webkit-scrollbar-track{background:var(--bg2);}
@@ -219,7 +223,7 @@
             <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
             <th class="cn">#</th>
             <th>Date Issued</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
-            <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
+            <th>Date Returned</th><th>Sterility Date</th><th>Initial Review Date</th><th>Review Complete Date</th>
             <th class="ca">Days Issued to Return</th>
             <th class="ca">Days Returned to Review</th>
             <th class="ca">Days not Dispositioned</th>
@@ -283,7 +287,8 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W = [28,26,108,80,90,76,108,108,108,82,90,88];
+const DEFAULT_COL_W       = [28,26,108,80,90,76,108,108,108,82,90,88];      // 12 cols (IMM. / BioFire)
+const DEFAULT_COL_W_PROMPT = [28,26,108,80,90,76,108,108,108,108,82,90,88]; // 13 cols (Prompt + Sterility Date)
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -294,7 +299,7 @@ IDS.forEach(function(tid) {
     nextId:    4,
     restored:  new Set(),
     permSelected: new Set(),
-    colWidths: DEFAULT_COL_W.slice(),
+    colWidths: (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : DEFAULT_COL_W).slice(),
     rowHeights: {}
   };
 });
@@ -428,6 +433,7 @@ function applyRemote(payload) {
     T[tid].deleted = (remote.deleted || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
     T[tid].nextId  = remote.nextId  || T[tid].nextId;
     if (!T[tid].permSelected) T[tid].permSelected = new Set();
+    if (!T[tid].colWidths) T[tid].colWidths = (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : DEFAULT_COL_W).slice();
     render(tid, changedIds);
   });
   document.getElementById('sync-time').textContent = 'Updated ' + new Date().toLocaleTimeString();
@@ -474,7 +480,7 @@ function setSyncStatus(state) {
 // ================================================================
 
 function mkRow(id) {
-  return { id:id, dateIssued:'', lotNumbers:'', erLirNumber:'', ncrNumber:'', dateReturned:'', initialReviewDate:'', reviewCompleteDate:'', done:false, strikes:{} };
+  return { id:id, dateIssued:'', lotNumbers:'', erLirNumber:'', ncrNumber:'', dateReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', done:false, strikes:{} };
 }
 
 // ── Strike mode ──────────────────────────────────────────────
@@ -627,6 +633,17 @@ function rowHTML(tid, row, i, isDel) {
     textTd('erLirNumber',  row.erLirNumber, 'ER/LIR number') +
     textTd('ncrNumber',    row.ncrNumber,   'NCR number') +
     dateTd('dateReturned', '<input type="date" class="di" value="' + esc(row.dateReturned) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReturned\',this.value)">') +
+    (tid === 'prompt' ? (function() {
+      var sd = row.sterilityDate || '';
+      var sdDays = sd ? dSince(sd) : null;
+      var sdCapped = sdDays !== null ? Math.min(sdDays, 14) : null;
+      var cls = sdCapped === null ? '' : (sdCapped >= 14 ? ' expired' : (sdCapped >= 10 ? ' warn' : ' ok'));
+      var counter = sdCapped !== null ? '<span class="sterility-counter' + cls + '">' + sdCapped + ' of 14</span>' : '';
+      var skCls = (sk['sterilityDate'] ? ' cell-struck' : '');
+      return '<td class="strikeable' + skCls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'sterilityDate\')">' +
+        '<input type="date" class="di" value="' + esc(sd) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'sterilityDate\',this.value)">' +
+        counter + '</td>';
+    })() : '') +
     dateTd('initialReviewDate', '<input type="date" class="di" value="' + esc(row.initialReviewDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'initialReviewDate\',this.value)">') +
     dateTd('reviewCompleteDate', '<input type="date" class="di" value="' + esc(row.reviewCompleteDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'reviewCompleteDate\',this.value)">') +
     cCell(dIR) + cCell(dRR) + cCell(dND)
@@ -675,7 +692,7 @@ function render(tid, remoteIds) {
     var anyPermSel = s.permSelected.size > 0;
     var divider = document.createElement('tr');
     divider.className = 'divrow';
-    divider.innerHTML = '<td colspan="12"><div class="divrow-inner">' +
+    divider.innerHTML = '<td colspan="' + T[tid].colWidths.length + '"><div class="divrow-inner">' +
       '<span>Dispositioned (' + s.deleted.length + ')</span>' +
       '<div style="display:flex;gap:6px;align-items:center;">' +
       (anyPermSel
