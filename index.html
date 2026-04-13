@@ -969,9 +969,9 @@ function applyColWidths(tid) {
     calcWs.forEach(function(w,i){ cg.children[i].style.width = w + 'px'; });
   });
 
-  // Fix calc panel width so it doesn't flex
+  // Fix calc panel width — add 18px for the toggle button strip
   var panel = document.getElementById(tid + '-calc-panel');
-  if (panel) panel.style.width = calcTotal + 'px';
+  if (panel) panel.style.width = (calcTotal + 18) + 'px';
 }
 
 function injectColResizeHandles() {
