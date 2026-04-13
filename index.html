@@ -127,16 +127,14 @@
   .sterility-counter.ok{color:var(--green-txt);}
   .sterility-counter.warn{color:#f0c040;}
   .sterility-counter.expired{color:#f08080;}
-  .panel-table-area{display:flex;flex:1;overflow:hidden;position:relative;}
+  .panel-table-area{display:flex;flex:1;overflow:hidden;}
   .panel-scroll-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
-  .calc-panel{flex-shrink:0;display:flex;flex-direction:column;border-left:2px solid var(--green);background:var(--bg);}
-  .calc-panel .thead-wrap{overflow:hidden;border-bottom:1px solid var(--border);}
-  .calc-panel-toggle{position:absolute;top:0;bottom:0;right:0;width:18px;z-index:10;background:var(--calc-bg);border:none;border-left:2px solid var(--green);cursor:pointer;color:var(--green-txt);font-size:8.5pt;font-family:var(--aptos);writing-mode:vertical-rl;text-orientation:mixed;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;}
+  .calc-panel{flex-shrink:0;display:flex;flex-direction:row;border-left:2px solid var(--green);background:var(--bg);}
+  .calc-panel-toggle{flex-shrink:0;width:18px;background:var(--calc-bg);border:none;border-right:1px solid #444;cursor:pointer;color:var(--green-txt);font-size:8.5pt;font-family:var(--aptos);writing-mode:vertical-rl;text-orientation:mixed;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;}
   .calc-panel-toggle:hover{background:var(--green-bg);}
-  .calc-panel.collapsed .thead-wrap,
-  .calc-panel.collapsed .calc-body-wrap{display:none;}
-  .calc-panel.collapsed{width:0!important;border:none;}
-  .panel-table-area.calc-collapsed .calc-panel-toggle{border-left:2px solid var(--green);background:var(--calc-bg);}
+  .calc-panel-inner{display:flex;flex-direction:column;flex:1;overflow:hidden;}
+  .calc-panel-inner .thead-wrap{overflow:hidden;border-bottom:1px solid var(--border);}
+  .calc-panel.collapsed .calc-panel-inner{display:none;}
   .calc-body-wrap{flex:1;overflow:hidden;}
   .calc-body-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;}
     .nosel,.nosel *{user-select:none!important;}
@@ -215,15 +213,17 @@
         </div>
         <div class="calc-panel" id="imm-calc-panel">
           <button class="calc-panel-toggle" onclick="toggleCalcPanel('imm')" id="imm-calc-toggle" title="Collapse/expand columns">◀</button>
-          <div class="thead-wrap">
-            <table id="imm-calc-htable"><thead><tr>
-              <th class="ca">Days Issued to Return</th>
-              <th class="ca">Days Returned to Review</th>
-              <th class="ca">Days not Dispositioned</th>
-            </tr></thead></table>
-          </div>
-          <div class="calc-body-wrap" id="imm-calc-body">
-            <table id="imm-calc-table"><tbody id="imm-calc-tbody"></tbody></table>
+          <div class="calc-panel-inner">
+            <div class="thead-wrap">
+              <table id="imm-calc-htable"><thead><tr>
+                <th class="ca">Days Issued to Return</th>
+                <th class="ca">Days Returned to Review</th>
+                <th class="ca">Days not Dispositioned</th>
+              </tr></thead></table>
+            </div>
+            <div class="calc-body-wrap" id="imm-calc-body">
+              <table id="imm-calc-table"><tbody id="imm-calc-tbody"></tbody></table>
+            </div>
           </div>
         </div>
       </div>
@@ -260,6 +260,7 @@
           </div>
           <div class="calc-panel" id="prompt-calc-panel">
             <button class="calc-panel-toggle" onclick="toggleCalcPanel('prompt')" id="prompt-calc-toggle" title="Collapse/expand columns">◀</button>
+            <div class="calc-panel-inner">
             <div class="thead-wrap">
               <table id="prompt-calc-htable"><thead><tr>
                 <th class="ca">Sterility Date</th>
@@ -271,6 +272,7 @@
             <div class="calc-body-wrap" id="prompt-calc-body">
               <table id="prompt-calc-table"><tbody id="prompt-calc-tbody"></tbody></table>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -305,6 +307,7 @@
           </div>
           <div class="calc-panel" id="biofire-calc-panel">
             <button class="calc-panel-toggle" onclick="toggleCalcPanel('biofire')" id="biofire-calc-toggle" title="Collapse/expand columns">◀</button>
+            <div class="calc-panel-inner">
             <div class="thead-wrap">
               <table id="biofire-calc-htable"><thead><tr>
                 <th class="ca">Days Issued to Return</th>
@@ -315,6 +318,7 @@
             <div class="calc-body-wrap" id="biofire-calc-body">
               <table id="biofire-calc-table"><tbody id="biofire-calc-tbody"></tbody></table>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -992,10 +996,8 @@ function injectColResizeHandles() {
 function toggleCalcPanel(tid) {
   var panel = document.getElementById(tid + '-calc-panel');
   var btn   = document.getElementById(tid + '-calc-toggle');
-  var area  = panel ? panel.closest('.panel-table-area') : null;
-  if (!panel || !area) return;
+  if (!panel) return;
   var collapsed = panel.classList.toggle('collapsed');
-  area.classList.toggle('calc-collapsed', collapsed);
   btn.textContent = collapsed ? '▶' : '◀';
   btn.title = collapsed ? 'Expand columns' : 'Collapse columns';
 }
