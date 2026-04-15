@@ -129,12 +129,12 @@
   .sterility-counter.expired{color:#f08080;}
   .panel-table-area{display:flex;flex:1;overflow:hidden;}
   .panel-scroll-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
-  .calc-panel{flex-shrink:0;display:flex;flex-direction:row;border-left:2px solid var(--green);background:var(--bg);}
-  .calc-panel-toggle{flex-shrink:0;width:18px;background:var(--calc-bg);border:none;border-right:1px solid #444;cursor:pointer;color:var(--green-txt);font-size:8.5pt;font-family:var(--aptos);writing-mode:vertical-rl;text-orientation:mixed;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;}
-  .calc-panel-toggle:hover{background:var(--green-bg);}
+  .calc-panel{flex-shrink:0;display:flex;flex-direction:column;border-left:2px solid var(--green);background:var(--bg);overflow:hidden;transition:width .2s ease;}
   .calc-panel-inner{display:flex;flex-direction:column;flex:1;overflow:hidden;}
   .calc-panel-inner .thead-wrap{overflow:hidden;border-bottom:1px solid var(--border);}
-  .calc-panel.collapsed .calc-panel-inner{display:none;}
+  .calc-panel.collapsed{width:0!important;border-left:none;}
+  .calc-panel-toggle{flex-shrink:0;width:18px;background:var(--calc-bg);border:none;border-left:2px solid var(--green);cursor:pointer;color:var(--green-txt);font-size:8.5pt;font-family:var(--aptos);writing-mode:vertical-rl;text-orientation:mixed;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;}
+  .calc-panel-toggle:hover{background:var(--green-bg);}
   .calc-body-wrap{flex:1;overflow:hidden;}
   .calc-body-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;}
     .nosel,.nosel *{user-select:none!important;}
@@ -212,7 +212,6 @@
           </div>
         </div>
         <div class="calc-panel" id="imm-calc-panel">
-          <button class="calc-panel-toggle" onclick="toggleCalcPanel('imm')" id="imm-calc-toggle" title="Collapse/expand columns">◀</button>
           <div class="calc-panel-inner">
             <div class="thead-wrap">
               <table id="imm-calc-htable"><thead><tr>
@@ -226,6 +225,7 @@
             </div>
           </div>
         </div>
+        <button class="calc-panel-toggle" onclick="toggleCalcPanel('imm')" id="imm-calc-toggle" title="Collapse/expand columns">◀</button>
       </div>
     </div>
     <div class="v-divider" id="v-divider"></div>
@@ -259,21 +259,21 @@
             </div>
           </div>
           <div class="calc-panel" id="prompt-calc-panel">
-            <button class="calc-panel-toggle" onclick="toggleCalcPanel('prompt')" id="prompt-calc-toggle" title="Collapse/expand columns">◀</button>
             <div class="calc-panel-inner">
-            <div class="thead-wrap">
-              <table id="prompt-calc-htable"><thead><tr>
-                <th class="ca">Sterility Date</th>
-                <th class="ca">Days Issued to Return</th>
-                <th class="ca">Days Returned to Review</th>
-                <th class="ca">Days not Dispositioned</th>
-              </tr></thead></table>
-            </div>
-            <div class="calc-body-wrap" id="prompt-calc-body">
-              <table id="prompt-calc-table"><tbody id="prompt-calc-tbody"></tbody></table>
+              <div class="thead-wrap">
+                <table id="prompt-calc-htable"><thead><tr>
+                  <th class="ca">Sterility Date</th>
+                  <th class="ca">Days Issued to Return</th>
+                  <th class="ca">Days Returned to Review</th>
+                  <th class="ca">Days not Dispositioned</th>
+                </tr></thead></table>
+              </div>
+              <div class="calc-body-wrap" id="prompt-calc-body">
+                <table id="prompt-calc-table"><tbody id="prompt-calc-tbody"></tbody></table>
+              </div>
             </div>
           </div>
-          </div>
+          <button class="calc-panel-toggle" onclick="toggleCalcPanel('prompt')" id="prompt-calc-toggle" title="Collapse/expand columns">◀</button>
         </div>
       </div>
       <div class="h-divider" id="h-divider"></div>
@@ -306,20 +306,20 @@
             </div>
           </div>
           <div class="calc-panel" id="biofire-calc-panel">
-            <button class="calc-panel-toggle" onclick="toggleCalcPanel('biofire')" id="biofire-calc-toggle" title="Collapse/expand columns">◀</button>
             <div class="calc-panel-inner">
-            <div class="thead-wrap">
-              <table id="biofire-calc-htable"><thead><tr>
-                <th class="ca">Days Issued to Return</th>
-                <th class="ca">Days Returned to Review</th>
-                <th class="ca">Days not Dispositioned</th>
-              </tr></thead></table>
-            </div>
-            <div class="calc-body-wrap" id="biofire-calc-body">
-              <table id="biofire-calc-table"><tbody id="biofire-calc-tbody"></tbody></table>
+              <div class="thead-wrap">
+                <table id="biofire-calc-htable"><thead><tr>
+                  <th class="ca">Days Issued to Return</th>
+                  <th class="ca">Days Returned to Review</th>
+                  <th class="ca">Days not Dispositioned</th>
+                </tr></thead></table>
+              </div>
+              <div class="calc-body-wrap" id="biofire-calc-body">
+                <table id="biofire-calc-table"><tbody id="biofire-calc-tbody"></tbody></table>
+              </div>
             </div>
           </div>
-          </div>
+          <button class="calc-panel-toggle" onclick="toggleCalcPanel('biofire')" id="biofire-calc-toggle" title="Collapse/expand columns">◀</button>
         </div>
       </div>
     </div>
@@ -969,9 +969,9 @@ function applyColWidths(tid) {
     calcWs.forEach(function(w,i){ cg.children[i].style.width = w + 'px'; });
   });
 
-  // Fix calc panel width — add 18px for the toggle button strip
+  // Fix calc panel width
   var panel = document.getElementById(tid + '-calc-panel');
-  if (panel) panel.style.width = (calcTotal + 18) + 'px';
+  if (panel) panel.style.width = calcTotal + 'px';
 }
 
 function injectColResizeHandles() {
