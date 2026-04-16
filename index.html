@@ -203,7 +203,7 @@
             <table id="imm-htable"><thead><tr>
               <th class="cc"><input type="checkbox" id="imm-sa" onchange="toggleAll('imm',this)"></th>
               <th class="cn">#</th>
-              <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
+              <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th>
               <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
             </tr></thead></table>
           </div>
@@ -215,6 +215,8 @@
           <div class="calc-panel-inner">
             <div class="thead-wrap">
               <table id="imm-calc-htable"><thead><tr>
+                <th class="ca">ER/LIR Number</th>
+                <th class="ca">NCR Number</th>
                 <th class="ca">Days Issued to Return</th>
                 <th class="ca">Days Returned to Review</th>
                 <th class="ca">Days not Dispositioned</th>
@@ -250,7 +252,7 @@
               <table id="prompt-htable"><thead><tr>
                 <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
                 <th class="cn">#</th>
-                <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
+                <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th>
                 <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
@@ -262,6 +264,8 @@
             <div class="calc-panel-inner">
               <div class="thead-wrap">
                 <table id="prompt-calc-htable"><thead><tr>
+                  <th class="ca">ER/LIR Number</th>
+                  <th class="ca">NCR Number</th>
                   <th class="ca">Sterility Date</th>
                   <th class="ca">Days Issued to Return</th>
                   <th class="ca">Days Returned to Review</th>
@@ -297,7 +301,7 @@
               <table id="biofire-htable"><thead><tr>
                 <th class="cc"><input type="checkbox" id="biofire-sa" onchange="toggleAll('biofire',this)"></th>
                 <th class="cn">#</th>
-                <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th><th>ER/LIR Number</th><th>NCR Number</th>
+                <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th>
                 <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
@@ -309,6 +313,8 @@
             <div class="calc-panel-inner">
               <div class="thead-wrap">
                 <table id="biofire-calc-htable"><thead><tr>
+                  <th class="ca">ER/LIR Number</th>
+                  <th class="ca">NCR Number</th>
                   <th class="ca">Days Issued to Return</th>
                   <th class="ca">Days Returned to Review</th>
                   <th class="ca">Days not Dispositioned</th>
@@ -346,9 +352,9 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W       = [28,26,108,108,80,90,76,108,108,108,82,90,88];     // 13 cols (IMM. / BioFire)
-const DEFAULT_COL_W_PROMPT = [28,26,108,108,80,90,76,108,108,108,108,82,90,88]; // 14 cols (Prompt: Sterility Date in calc)
-const CALC_COL_COUNT = { imm: 3, prompt: 4, biofire: 3 }; // how many cols live in the fixed calc panel
+const DEFAULT_COL_W       = [28,26,108,108,80,108,108,108,90,76,82,90,88];     // 13 cols (IMM. / BioFire)
+const DEFAULT_COL_W_PROMPT = [28,26,108,108,80,108,108,108,90,76,108,82,90,88]; // 14 cols (Prompt: Sterility Date in calc)
+const CALC_COL_COUNT = { imm: 5, prompt: 6, biofire: 5 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -705,8 +711,6 @@ function rowHTML(tid, row, i, isDel) {
     dateTd('dateIssued',   '<input type="date" class="di" value="' + esc(row.dateIssued)   + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateIssued\',this.value)">') +
     dateTd('dateManufactured', '<input type="date" class="di" value="' + esc(row.dateManufactured) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateManufactured\',this.value)">') +
     textTd('lotNumbers',   row.lotNumbers,  'Lot numbers') +
-    textTd('erLirNumber',  row.erLirNumber, 'ER/LIR number') +
-    textTd('ncrNumber',    row.ncrNumber,   'NCR number') +
     dateTd('dateReturned', '<input type="date" class="di" value="' + esc(row.dateReturned) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReturned\',this.value)">') +
     dateTd('initialReviewDate', '<input type="date" class="di" value="' + esc(row.initialReviewDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'initialReviewDate\',this.value)">') +
     dateTd('reviewCompleteDate', '<input type="date" class="di" value="' + esc(row.reviewCompleteDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'reviewCompleteDate\',this.value)">') 
@@ -718,6 +722,16 @@ function calcRowHTML(tid, row, isDel) {
   var dIR = isDel ? (row._snapIR !== undefined ? row._snapIR : null) : dBetween(row.dateIssued, row.dateReturned);
   var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.reviewCompleteDate);
   var dND = isDel ? (row._snapND !== undefined ? row._snapND : null) : dSince(row.dateReturned);
+
+  // ER/LIR and NCR — contenteditable text cells in the calc panel
+  function calcTextTd(field, html, placeholder) {
+    return '<td class="ca" style="text-align:left;vertical-align:top;"><div class="ci" contenteditable="true" ' +
+      'data-tid="' + tid + '" data-rowid="' + row.id + '" data-field="' + field + '" ' +
+      'data-ph="' + placeholder + '" ' +
+      'oninput="updHtml(this)" onblur="scheduleSave()">' +
+      (html || '') + '</div></td>';
+  }
+
   var sterCell = '';
   if (tid === 'prompt') {
     var sd    = row.sterilityDate || '';
@@ -731,7 +745,9 @@ function calcRowHTML(tid, row, isDel) {
       '<input type="date" class="di" value="' + esc(sd) + '" onchange="upd(\'prompt\',' + row.id + ',\'sterilityDate\',this.value)">' +
       ctr + '</td>';
   }
-  return sterCell + cCell(dIR) + cCell(dRR) + cCell(dND);
+  return calcTextTd('erLirNumber', row.erLirNumber, 'ER/LIR') +
+    calcTextTd('ncrNumber', row.ncrNumber, 'NCR') +
+    sterCell + cCell(dIR) + cCell(dRR) + cCell(dND);
 }
 
 // ================================================================
@@ -786,7 +802,7 @@ function render(tid, remoteIds) {
 
   if (s.deleted.length > 0) {
     var anyPermSel = s.permSelected.size > 0;
-    var mainCols   = T[tid].colWidths.length - 3;
+    var mainCols   = T[tid].colWidths.length - CALC_COL_COUNT[tid];
     // Main divider
     var divider = document.createElement('tr');
     divider.className = 'divrow';
@@ -803,7 +819,7 @@ function render(tid, remoteIds) {
     if (calcTbody) {
       var calcDiv = document.createElement('tr');
       calcDiv.className = 'divrow';
-      calcDiv.innerHTML = '<td colspan="3"></td>';
+      calcDiv.innerHTML = '<td colspan="' + CALC_COL_COUNT[tid] + '"></td>';
       calcTbody.appendChild(calcDiv);
     }
     s.deleted.forEach(function(row, i) {
