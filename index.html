@@ -449,6 +449,18 @@ function initApp() {
   injectColResizeHandles();
   initPanelResizers();
   initFirebaseListeners();
+  // Watch for any content size changes and keep rows in sync
+  if (window.ResizeObserver) {
+    IDS.forEach(function(tid) {
+      var observer = new ResizeObserver(function() {
+        syncCalcRowHeights(tid);
+      });
+      var mainTable = document.getElementById(tid + '-table');
+      var calcTable = document.getElementById(tid + '-calc-table');
+      if (mainTable) observer.observe(mainTable);
+      if (calcTable) observer.observe(calcTable);
+    });
+  }
 }
 
 // ================================================================
@@ -673,12 +685,44 @@ function syncCalcRowHeights(tid) {
   var calcRows = document.querySelectorAll('#' + tid + '-calc-tbody tr');
   var len = Math.min(mainRows.length, calcRows.length);
   for (var i = 0; i < len; i++) {
-    var h = mainRows[i].getBoundingClientRect().height;
-    if (h > 0) {
-      mainRows[i].style.height = h + 'px';
-      calcRows[i].style.height = h + 'px';
-    }
+    // Reset heights so we can measure natural content height
+    mainRows[i].style.height = '';
+    calcRows[i].style.height = '';
   }
+  // After reset, measure and apply the max of both sides
+  requestAnimationFrame(function() {
+    var mainRows2 = document.querySelectorAll('#' + tid + '-tbody tr');
+    var calcRows2 = document.querySelectorAll('#' + tid + '-calc-tbody tr');
+    var len2 = Math.min(mainRows2.length, calcRows2.length);
+    for (var j = 0; j < len2; j++) {
+      var mh = mainRows2[j].getBoundingClientRect().height;
+      var ch = calcRows2[j].getBoundingClientRect().height;
+      var h  = Math.max(mh, ch);
+      if (h > 0) {
+        mainRows2[j].style.height = h + 'px';
+        calcRows2[j].style.height = h + 'px';
+      }
+    }
+  });
+}
+
+// Sync a single row by rowId — called live on input
+function syncRowHeight(tid, rowId) {
+  var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
+               document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]');
+  var calcTr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + rowId + '"]');
+  if (!mainTr || !calcTr) return;
+  mainTr.style.height = '';
+  calcTr.style.height = '';
+  requestAnimationFrame(function() {
+    var mh = mainTr.getBoundingClientRect().height;
+    var ch = calcTr.getBoundingClientRect().height;
+    var h  = Math.max(mh, ch);
+    if (h > 0) {
+      mainTr.style.height = h + 'px';
+      calcTr.style.height = h + 'px';
+    }
+  });
 }
 
 // ================================================================
@@ -936,7 +980,7 @@ function upd(tid, id, field, value) {
   var s = T[tid];
   var r = s.rows.find(function(r){ return r.id === id; }) ||
           s.deleted.find(function(r){ return r.id === id; });
-  if (r) { r[field] = value; render(tid); scheduleSave(); }
+  if (r) { r[field] = value; render(tid); syncRowHeight(tid, id); scheduleSave(); }
 }
 // Contenteditable divs: save innerHTML so struck spans are preserved
 function updHtml(el) {
@@ -947,6 +991,7 @@ function updHtml(el) {
   var r = s.rows.find(function(r){ return r.id === rowId; }) ||
           s.deleted.find(function(r){ return r.id === rowId; });
   if (r) r[field] = el.innerHTML;
+  syncRowHeight(tid, rowId);
 }
 
 // ================================================================
