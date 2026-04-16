@@ -203,7 +203,7 @@
             <table id="imm-htable"><thead><tr>
               <th class="cc"><input type="checkbox" id="imm-sa" onchange="toggleAll('imm',this)"></th>
               <th class="cn">#</th>
-              <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th>
+              <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufactured</th>
               <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
             </tr></thead></table>
           </div>
@@ -252,7 +252,7 @@
               <table id="prompt-htable"><thead><tr>
                 <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
                 <th class="cn">#</th>
-                <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th>
+                <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufactured</th>
                 <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
@@ -301,7 +301,7 @@
               <table id="biofire-htable"><thead><tr>
                 <th class="cc"><input type="checkbox" id="biofire-sa" onchange="toggleAll('biofire',this)"></th>
                 <th class="cn">#</th>
-                <th>Date Issued</th><th>Date Manufactured</th><th>Lot Numbers</th>
+                <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufactured</th>
                 <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
@@ -352,8 +352,8 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W       = [28,26,108,108,80,108,108,108,90,76,82,90,88];     // 13 cols (IMM. / BioFire)
-const DEFAULT_COL_W_PROMPT = [28,26,108,108,80,108,108,108,90,76,108,82,90,88]; // 14 cols (Prompt: Sterility Date in calc)
+const DEFAULT_COL_W       = [28,26,80,108,108,108,108,108,90,76,82,90,88];     // 13 cols (IMM. / BioFire)
+const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,90,76,108,82,90,88]; // 14 cols (Prompt: Sterility Date in calc)
 const CALC_COL_COUNT = { imm: 5, prompt: 6, biofire: 5 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
@@ -708,9 +708,9 @@ function rowHTML(tid, row, i, isDel) {
   return (
     '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'toggleRow(\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
     '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
+    textTd('lotNumbers',   row.lotNumbers,  'Lot numbers') +
     dateTd('dateIssued',   '<input type="date" class="di" value="' + esc(row.dateIssued)   + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateIssued\',this.value)">') +
     dateTd('dateManufactured', '<input type="date" class="di" value="' + esc(row.dateManufactured) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateManufactured\',this.value)">') +
-    textTd('lotNumbers',   row.lotNumbers,  'Lot numbers') +
     dateTd('dateReturned', '<input type="date" class="di" value="' + esc(row.dateReturned) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReturned\',this.value)">') +
     dateTd('initialReviewDate', '<input type="date" class="di" value="' + esc(row.initialReviewDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'initialReviewDate\',this.value)">') +
     dateTd('reviewCompleteDate', '<input type="date" class="di" value="' + esc(row.reviewCompleteDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'reviewCompleteDate\',this.value)">') 
