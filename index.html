@@ -703,6 +703,8 @@ function syncPicker(hiddenId, textId, tid, rowId, field) {
   t.value = formatted;
   upd(tid, rowId, field, formatted);
 }
+
+function dBetween(a, b) {
   var d1 = parseLocalDate(a), d2 = parseLocalDate(b);
   if (!d1 || !d2) return null;
   return Math.round((d2 - d1) / 86400000);
