@@ -743,7 +743,8 @@ function rowHTML(tid, row, i, isDel) {
   // Date fields: cell-level strike (whole cell toggled on click in strike mode)
   function dateTd(field, inputHtml) {
     var cls = 'strikeable' + (sk[field] ? ' cell-struck' : '');
-    return '<td class="' + cls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'' + field + '\')">' + inputHtml + '</td>';
+    return '<td class="' + cls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'' + field + '\')">' +
+      inputHtml.replace('<input ', '<input onclick="event.stopPropagation()" ') + '</td>';
   }
 
   // Text fields: contenteditable div — strikethrough applied to selected text
@@ -792,7 +793,7 @@ function calcRowHTML(tid, row, isDel) {
     var sk    = row.strikes || {};
     var skCls = sk['sterilityDate'] ? ' cell-struck' : '';
     sterCell  = '<td class="ca strikeable' + skCls + '" onclick="handleCellStrike(event,\'prompt\',' + row.id + ',\'sterilityDate\')">' +
-      '<input type="date" class="di" value="' + esc(sd) + '" onchange="upd(\'prompt\',' + row.id + ',\'sterilityDate\',this.value)">' +
+      '<input type="date" class="di" value="' + esc(sd) + '" onclick="event.stopPropagation()" onchange="upd(\'prompt\',' + row.id + ',\'sterilityDate\',this.value)">' +
       ctr + '</td>';
   }
   return calcTextTd('erLirNumber', row.erLirNumber, 'ER/LIR') +
