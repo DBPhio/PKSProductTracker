@@ -106,7 +106,8 @@
   .ci .struck{text-decoration:line-through;color:#c4a8f0;}
   .ci s,.ci strike{text-decoration:line-through;color:#c4a8f0;}
   .strike-mode .ci{cursor:text;}
-  .di{width:100%;font-size:var(--fs);font-family:var(--aptos);background:transparent;border:none;outline:none;color:var(--txt);cursor:pointer;display:block;}
+  .di{width:100%;font-size:var(--fs);font-family:var(--aptos);background:transparent;border:none;outline:none;color:var(--txt);cursor:text;display:block;}
+  .di::placeholder{color:var(--txt3);font-size:9pt;}
   td:focus-within{outline:1.5px solid var(--green);outline-offset:-1.5px;}
   tr.done .ci,tr.done .di{color:var(--done-txt);}
   .flash{animation:flashRow .35s ease;}
@@ -645,13 +646,30 @@ function handleCellStrike(e, tid, rowId, field) {
   scheduleSave();
 }
 
-// Parse date string in LOCAL time to avoid UTC timezone offset bug
+// Parse date string — accepts YYYY-MM-DD, MM/DD/YYYY, M/D/YYYY, MM-DD-YYYY
 function parseLocalDate(s) {
   if (!s) return null;
-  var p = s.split('-');
-  if (p.length !== 3) return null;
-  var d = new Date(+p[0], +p[1]-1, +p[2]);
-  return isNaN(d.getTime()) ? null : d;
+  s = s.trim();
+  var p, d;
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) {
+    p = s.split('-');
+    d = new Date(+p[0], +p[1]-1, +p[2]);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // MM/DD/YYYY or M/D/YYYY
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+    p = s.split('/');
+    d = new Date(+p[2], +p[0]-1, +p[1]);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // MM-DD-YYYY
+  if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(s)) {
+    p = s.split('-');
+    d = new Date(+p[2], +p[0]-1, +p[1]);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
 }
 
 function dBetween(a, b) {
@@ -744,7 +762,7 @@ function rowHTML(tid, row, i, isDel) {
   function dateTd(field, inputHtml) {
     var cls = 'strikeable' + (sk[field] ? ' cell-struck' : '');
     return '<td class="' + cls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'' + field + '\')">' +
-      inputHtml.replace('<input ', '<input onclick="event.stopPropagation()" ') + '</td>';
+      inputHtml.replace('<input ', '<input onclick="event.stopPropagation()" onfocus="event.stopPropagation()" ') + '</td>';
   }
 
   // Text fields: contenteditable div — strikethrough applied to selected text
@@ -760,11 +778,11 @@ function rowHTML(tid, row, i, isDel) {
     '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'toggleRow(\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
     '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
     textTd('lotNumbers',   row.lotNumbers,  'Lot numbers') +
-    dateTd('dateIssued',   '<input type="date" class="di" value="' + esc(row.dateIssued)   + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateIssued\',this.value)">') +
-    dateTd('dateManufactured', '<input type="date" class="di" value="' + esc(row.dateManufactured) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateManufactured\',this.value)">') +
-    dateTd('dateReturned', '<input type="date" class="di" value="' + esc(row.dateReturned) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'dateReturned\',this.value)">') +
-    dateTd('initialReviewDate', '<input type="date" class="di" value="' + esc(row.initialReviewDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'initialReviewDate\',this.value)">') +
-    dateTd('reviewCompleteDate', '<input type="date" class="di" value="' + esc(row.reviewCompleteDate) + '" onchange="upd(\'' + tid + '\',' + row.id + ',\'reviewCompleteDate\',this.value)">') 
+    dateTd('dateIssued',   '<input type="text" class="di" inputmode="numeric" placeholder="Date Issued" value="' + esc(row.dateIssued)   + '" onblur="upd(\'' + tid + '\',' + row.id + ',\'dateIssued\',this.value)">') +
+    dateTd('dateManufactured', '<input type="text" class="di" inputmode="numeric" placeholder="Date Mfg" value="' + esc(row.dateManufactured) + '" onblur="upd(\'' + tid + '\',' + row.id + ',\'dateManufactured\',this.value)">') +
+    dateTd('dateReturned', '<input type="text" class="di" inputmode="numeric" placeholder="Date Returned" value="' + esc(row.dateReturned) + '" onblur="upd(\'' + tid + '\',' + row.id + ',\'dateReturned\',this.value)">') +
+    dateTd('initialReviewDate', '<input type="text" class="di" inputmode="numeric" placeholder="Initial Review" value="' + esc(row.initialReviewDate) + '" onblur="upd(\'' + tid + '\',' + row.id + ',\'initialReviewDate\',this.value)">') +
+    dateTd('reviewCompleteDate', '<input type="text" class="di" inputmode="numeric" placeholder="Review Complete" value="' + esc(row.reviewCompleteDate) + '" onblur="upd(\'' + tid + '\',' + row.id + ',\'reviewCompleteDate\',this.value)">') 
   );
 }
 
@@ -793,7 +811,7 @@ function calcRowHTML(tid, row, isDel) {
     var sk    = row.strikes || {};
     var skCls = sk['sterilityDate'] ? ' cell-struck' : '';
     sterCell  = '<td class="ca strikeable' + skCls + '" onclick="handleCellStrike(event,\'prompt\',' + row.id + ',\'sterilityDate\')">' +
-      '<input type="date" class="di" value="' + esc(sd) + '" onclick="event.stopPropagation()" onchange="upd(\'prompt\',' + row.id + ',\'sterilityDate\',this.value)">' +
+      '<input type="text" class="di" inputmode="numeric" placeholder="Sterility Date" value="' + esc(sd) + '" onblur="upd(\'prompt\',' + row.id + ',\'sterilityDate\',this.value)">' +
       ctr + '</td>';
   }
   return calcTextTd('erLirNumber', row.erLirNumber, 'ER/LIR') +
