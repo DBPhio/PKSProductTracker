@@ -106,8 +106,13 @@
   .ci .struck{text-decoration:line-through;color:#c4a8f0;}
   .ci s,.ci strike{text-decoration:line-through;color:#c4a8f0;}
   .strike-mode .ci{cursor:text;}
-  .di{width:100%;font-size:var(--fs);font-family:var(--aptos);background:transparent;border:none;outline:none;color:var(--txt);cursor:text;display:block;}
+  .di{width:100%;font-size:var(--fs);font-family:var(--aptos);background:transparent;border:none;outline:none;color:var(--txt);cursor:text;display:block;min-width:0;}
   .di::placeholder{color:var(--txt3);font-size:9pt;}
+  .date-wrap{display:flex;align-items:center;gap:2px;width:100%;}
+  .date-wrap .di{flex:1;}
+  .date-cal-btn{flex-shrink:0;background:transparent;border:none;cursor:pointer;color:var(--txt3);font-size:10pt;padding:0 1px;line-height:1;transition:color .15s;}
+  .date-cal-btn:hover{color:var(--green-txt);}
+  .date-hidden{position:absolute;opacity:0;pointer-events:none;width:0;height:0;}
   td:focus-within{outline:1.5px solid var(--green);outline-offset:-1.5px;}
   tr.done .ci,tr.done .di{color:var(--done-txt);}
   .flash{animation:flashRow .35s ease;}
@@ -672,7 +677,32 @@ function parseLocalDate(s) {
   return null;
 }
 
-function dBetween(a, b) {
+// Format a stored date value as MM/DD/YYYY for display
+function fmtDate(val) {
+  var d = parseLocalDate(val);
+  if (!d) return val || '';
+  var m = d.getMonth() + 1;
+  var day = d.getDate();
+  var y = d.getFullYear();
+  return (m < 10 ? '0' + m : m) + '/' + (day < 10 ? '0' + day : day) + '/' + y;
+}
+
+// Open the hidden date picker for a cell
+function pickDate(hiddenId) {
+  var h = document.getElementById(hiddenId);
+  if (!h) return;
+  try { h.showPicker(); } catch(e) { h.click(); }
+}
+
+// Called when the hidden date picker changes — syncs to the text input and saves
+function syncPicker(hiddenId, textId, tid, rowId, field) {
+  var h = document.getElementById(hiddenId);
+  var t = document.getElementById(textId);
+  if (!h || !t) return;
+  var formatted = h.value ? fmtDate(h.value) : '';
+  t.value = formatted;
+  upd(tid, rowId, field, formatted);
+}
   var d1 = parseLocalDate(a), d2 = parseLocalDate(b);
   if (!d1 || !d2) return null;
   return Math.round((d2 - d1) / 86400000);
@@ -758,11 +788,25 @@ function rowHTML(tid, row, i, isDel) {
   var sk  = row.strikes || {};
   var dh  = isDel ? '' : '<div class="drag-handle" onmousedown="startRowDrag(event,\'' + tid + '\',' + row.id + ')" title="Drag to reorder"><span></span><span></span><span></span></div>';
 
-  // Date fields: cell-level strike (whole cell toggled on click in strike mode)
-  function dateTd(field, inputHtml) {
-    var cls = 'strikeable' + (sk[field] ? ' cell-struck' : '');
+  // Date fields: combo text input + hidden calendar picker
+  function dateCell(field, value, placeholder) {
+    var uid   = tid + '-' + row.id + '-' + field;
+    var tId   = 'dpt-' + uid;
+    var hId   = 'dph-' + uid;
+    // Convert stored value to hidden picker format (YYYY-MM-DD)
+    var d     = parseLocalDate(value);
+    var hVal  = d ? (d.getFullYear() + '-' + (d.getMonth()<9?'0':'') + (d.getMonth()+1) + '-' + (d.getDate()<10?'0':'') + d.getDate()) : '';
+    var cls   = 'strikeable' + (sk[field] ? ' cell-struck' : '');
     return '<td class="' + cls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'' + field + '\')">' +
-      inputHtml.replace('<input ', '<input onclick="event.stopPropagation()" onfocus="event.stopPropagation()" ') + '</td>';
+      '<div class="date-wrap" onclick="event.stopPropagation()">' +
+        '<input type="text" id="' + tId + '" class="di" inputmode="numeric" placeholder="' + placeholder + '" value="' + esc(fmtDate(value)) + '" ' +
+          'onblur="upd(\'' + tid + '\',' + row.id + ',\'' + field + '\',this.value)" ' +
+          'onfocus="event.stopPropagation()">' +
+        '<button class="date-cal-btn" onclick="pickDate(\'' + hId + '\')" title="Pick date">📅</button>' +
+        '<input type="date" id="' + hId + '" class="date-hidden" value="' + hVal + '" ' +
+          'onchange="syncPicker(\'' + hId + '\',\'' + tId + '\',\'' + tid + '\',' + row.id + ',\'' + field + '\')">' +
+      '</div>' +
+    '</td>';
   }
 
   // Text fields: contenteditable div — strikethrough applied to selected text
@@ -777,12 +821,12 @@ function rowHTML(tid, row, i, isDel) {
   return (
     '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'toggleRow(\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
     '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
-    textTd('lotNumbers',   row.lotNumbers,  'Lot numbers') +
-    dateTd('dateIssued',   '<input type="text" class="di" inputmode="numeric" placeholder="Date Issued" value="' + esc(row.dateIssued)   + '" onblur="upd(\'' + tid + '\',' + row.id + ',\'dateIssued\',this.value)">') +
-    dateTd('dateManufactured', '<input type="text" class="di" inputmode="numeric" placeholder="Date Mfg" value="' + esc(row.dateManufactured) + '" onblur="upd(\'' + tid + '\',' + row.id + ',\'dateManufactured\',this.value)">') +
-    dateTd('dateReturned', '<input type="text" class="di" inputmode="numeric" placeholder="Date Returned" value="' + esc(row.dateReturned) + '" onblur="upd(\'' + tid + '\',' + row.id + ',\'dateReturned\',this.value)">') +
-    dateTd('initialReviewDate', '<input type="text" class="di" inputmode="numeric" placeholder="Initial Review" value="' + esc(row.initialReviewDate) + '" onblur="upd(\'' + tid + '\',' + row.id + ',\'initialReviewDate\',this.value)">') +
-    dateTd('reviewCompleteDate', '<input type="text" class="di" inputmode="numeric" placeholder="Review Complete" value="' + esc(row.reviewCompleteDate) + '" onblur="upd(\'' + tid + '\',' + row.id + ',\'reviewCompleteDate\',this.value)">') 
+    textTd('lotNumbers',        row.lotNumbers,        'Lot numbers') +
+    dateCell('dateIssued',      row.dateIssued,         'MM/DD/YYYY') +
+    dateCell('dateManufactured',row.dateManufactured,   'MM/DD/YYYY') +
+    dateCell('dateReturned',    row.dateReturned,       'MM/DD/YYYY') +
+    dateCell('initialReviewDate', row.initialReviewDate,'MM/DD/YYYY') +
+    dateCell('reviewCompleteDate',row.reviewCompleteDate,'MM/DD/YYYY')
   );
 }
 
@@ -808,10 +852,20 @@ function calcRowHTML(tid, row, isDel) {
     var sdCap = sdD !== null ? Math.min(sdD, 14) : null;
     var scls  = sdCap === null ? '' : (sdCap >= 14 ? ' expired' : (sdCap >= 10 ? ' warn' : ' ok'));
     var ctr   = sdCap !== null ? '<span class="sterility-counter' + scls + '">' + sdCap + ' of 14</span>' : '';
-    var sk    = row.strikes || {};
-    var skCls = sk['sterilityDate'] ? ' cell-struck' : '';
+    var sk2   = row.strikes || {};
+    var skCls = sk2['sterilityDate'] ? ' cell-struck' : '';
+    var sdD2  = parseLocalDate(sd);
+    var hVal  = sdD2 ? (sdD2.getFullYear() + '-' + (sdD2.getMonth()<9?'0':'') + (sdD2.getMonth()+1) + '-' + (sdD2.getDate()<10?'0':'') + sdD2.getDate()) : '';
+    var tId   = 'dpt-prompt-' + row.id + '-sterilityDate';
+    var hId   = 'dph-prompt-' + row.id + '-sterilityDate';
     sterCell  = '<td class="ca strikeable' + skCls + '" onclick="handleCellStrike(event,\'prompt\',' + row.id + ',\'sterilityDate\')">' +
-      '<input type="text" class="di" inputmode="numeric" placeholder="Sterility Date" value="' + esc(sd) + '" onblur="upd(\'prompt\',' + row.id + ',\'sterilityDate\',this.value)">' +
+      '<div class="date-wrap" onclick="event.stopPropagation()">' +
+        '<input type="text" id="' + tId + '" class="di" inputmode="numeric" placeholder="MM/DD/YYYY" value="' + esc(fmtDate(sd)) + '" ' +
+          'onblur="upd(\'prompt\',' + row.id + ',\'sterilityDate\',this.value)" onfocus="event.stopPropagation()">' +
+        '<button class="date-cal-btn" onclick="pickDate(\'' + hId + '\')" title="Pick date">📅</button>' +
+        '<input type="date" id="' + hId + '" class="date-hidden" value="' + hVal + '" ' +
+          'onchange="syncPicker(\'' + hId + '\',\'' + tId + '\',\'prompt\',' + row.id + ',\'sterilityDate\')">' +
+      '</div>' +
       ctr + '</td>';
   }
   return calcTextTd('erLirNumber', row.erLirNumber, 'ER/LIR') +
@@ -1005,7 +1059,17 @@ function upd(tid, id, field, value) {
   var s = T[tid];
   var r = s.rows.find(function(r){ return r.id === id; }) ||
           s.deleted.find(function(r){ return r.id === id; });
-  if (r) { r[field] = value; render(tid); syncRowHeight(tid, id); scheduleSave(); }
+  if (!r) return;
+  // Normalise date fields to MM/DD/YYYY on save
+  var dateFields = ['dateIssued','dateManufactured','dateReturned','initialReviewDate','reviewCompleteDate','sterilityDate'];
+  if (dateFields.indexOf(field) !== -1 && value) {
+    var norm = fmtDate(value);
+    value = norm || value;
+  }
+  r[field] = value;
+  render(tid);
+  syncRowHeight(tid, id);
+  scheduleSave();
 }
 // Contenteditable divs: save innerHTML so struck spans are preserved
 function updHtml(el) {
