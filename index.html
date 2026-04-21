@@ -148,7 +148,8 @@
   .calc-panel.collapsed{width:0!important;border-left:none;}
   .calc-panel-toggle{flex-shrink:0;width:18px;background:var(--calc-bg);border:none;border-left:2px solid var(--green);cursor:pointer;color:var(--green-txt);font-size:8.5pt;font-family:var(--aptos);writing-mode:vertical-rl;text-orientation:mixed;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;}
   .calc-panel-toggle:hover{background:var(--green-bg);}
-  .calc-body-wrap{flex:1;overflow:hidden;}
+  .calc-body-wrap{flex:1;overflow:auto;scrollbar-width:none;}
+  .calc-body-wrap::-webkit-scrollbar{display:none;}
   .calc-body-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;}
     .nosel,.nosel *{user-select:none!important;}
   ::-webkit-scrollbar{width:8px;height:8px;}
@@ -235,7 +236,7 @@
                 <th class="ca">Days not Dispositioned</th>
               </tr></thead></table>
             </div>
-            <div class="calc-body-wrap" id="imm-calc-body">
+            <div class="calc-body-wrap" id="imm-calc-body" onscroll="syncMainVScroll('imm',this)">
               <table id="imm-calc-table"><tbody id="imm-calc-tbody"></tbody></table>
             </div>
           </div>
@@ -285,7 +286,7 @@
                   <th class="ca">Days not Dispositioned</th>
                 </tr></thead></table>
               </div>
-              <div class="calc-body-wrap" id="prompt-calc-body">
+              <div class="calc-body-wrap" id="prompt-calc-body" onscroll="syncMainVScroll('prompt',this)">
                 <table id="prompt-calc-table"><tbody id="prompt-calc-tbody"></tbody></table>
               </div>
             </div>
@@ -333,7 +334,7 @@
                   <th class="ca">Days not Dispositioned</th>
                 </tr></thead></table>
               </div>
-              <div class="calc-body-wrap" id="biofire-calc-body">
+              <div class="calc-body-wrap" id="biofire-calc-body" onscroll="syncMainVScroll('biofire',this)">
                 <table id="biofire-calc-table"><tbody id="biofire-calc-tbody"></tbody></table>
               </div>
             </div>
@@ -732,9 +733,20 @@ function syncScroll(tid, bw) {
   document.getElementById(tid + '-thead-wrap').scrollLeft = bw.scrollLeft;
 }
 
+var _scrollSyncing = {};
 function syncCalcVScroll(tid, el) {
+  if (_scrollSyncing[tid]) return;
+  _scrollSyncing[tid] = true;
   var cb = document.getElementById(tid + '-calc-body');
   if (cb) cb.scrollTop = el.scrollTop;
+  _scrollSyncing[tid] = false;
+}
+function syncMainVScroll(tid, el) {
+  if (_scrollSyncing[tid]) return;
+  _scrollSyncing[tid] = true;
+  var mb = document.getElementById(tid + '-tbody-wrap');
+  if (mb) mb.scrollTop = el.scrollTop;
+  _scrollSyncing[tid] = false;
 }
 
 function syncCalcRowHeights(tid) {
