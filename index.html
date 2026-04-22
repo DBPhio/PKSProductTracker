@@ -267,7 +267,7 @@
                 <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
                 <th class="cn">#</th>
                 <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufactured</th>
-                <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
+                <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th><th>Date Review MR</th><th>Date Review QC</th>
               </tr></thead></table>
             </div>
             <div class="tbody-wrap" id="prompt-tbody-wrap" onscroll="syncScroll('prompt',this);syncCalcVScroll('prompt',this)">
@@ -316,7 +316,7 @@
                 <th class="cc"><input type="checkbox" id="biofire-sa" onchange="toggleAll('biofire',this)"></th>
                 <th class="cn">#</th>
                 <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufactured</th>
-                <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th>
+                <th>Date Returned</th><th>Initial Review Date</th><th>Review Complete Date</th><th>Date Review MR</th><th>Date Review QC</th>
               </tr></thead></table>
             </div>
             <div class="tbody-wrap" id="biofire-tbody-wrap" onscroll="syncScroll('biofire',this);syncCalcVScroll('biofire',this)">
@@ -366,8 +366,9 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W       = [28,26,80,108,108,108,108,108,90,96,82,90,88];     // 13 cols (IMM. / BioFire)
-const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,90,96,108,82,90,88]; // 14 cols (Prompt: Sterility Date in calc)
+const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,90,96,82,90,88];          // 13 cols (IMM)
+const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,90,96,108,82,90,88]; // 16 cols (Prompt + 2 review date cols)
+const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,90,96,82,90,88];  // 15 cols (BioFire + 2 review date cols)
 const CALC_COL_COUNT = { imm: 5, prompt: 6, biofire: 5 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
@@ -379,7 +380,7 @@ IDS.forEach(function(tid) {
     nextId:    4,
     restored:  new Set(),
     permSelected: new Set(),
-    colWidths: (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : DEFAULT_COL_W).slice(),
+    colWidths: (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : tid === 'biofire' ? DEFAULT_COL_W_BIOFIRE : DEFAULT_COL_W).slice(),
     rowHeights: {}
   };
 });
@@ -525,7 +526,7 @@ function applyRemote(payload) {
     T[tid].deleted = (remote.deleted || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
     T[tid].nextId  = remote.nextId  || T[tid].nextId;
     if (!T[tid].permSelected) T[tid].permSelected = new Set();
-    if (!T[tid].colWidths) T[tid].colWidths = (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : DEFAULT_COL_W).slice();
+    if (!T[tid].colWidths) T[tid].colWidths = (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : tid === 'biofire' ? DEFAULT_COL_W_BIOFIRE : DEFAULT_COL_W).slice();
     render(tid, changedIds);
   });
   document.getElementById('sync-time').textContent = 'Updated ' + new Date().toLocaleTimeString();
@@ -572,7 +573,7 @@ function setSyncStatus(state) {
 // ================================================================
 
 function mkRow(id) {
-  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', erLirNumber:'', ncrNumber:'', dateReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', done:false, strikes:{} };
+  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', erLirNumber:'', ncrNumber:'', dateReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', done:false, strikes:{} };
 }
 
 // ── Strike mode ──────────────────────────────────────────────
@@ -841,7 +842,9 @@ function rowHTML(tid, row, i, isDel) {
     dateCell('dateManufactured',row.dateManufactured,   'MM/DD/YYYY') +
     dateCell('dateReturned',    row.dateReturned,       'MM/DD/YYYY') +
     dateCell('initialReviewDate', row.initialReviewDate,'MM/DD/YYYY') +
-    dateCell('reviewCompleteDate',row.reviewCompleteDate,'MM/DD/YYYY')
+    dateCell('reviewCompleteDate',row.reviewCompleteDate,'MM/DD/YYYY') +
+    (tid !== 'imm' ? dateCell('dateReviewMR', row.dateReviewMR, 'MM/DD/YYYY') : '') +
+    (tid !== 'imm' ? dateCell('dateReviewQC', row.dateReviewQC, 'MM/DD/YYYY') : '')
   );
 }
 
