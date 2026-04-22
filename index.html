@@ -136,7 +136,7 @@
   tr.drop-above td{border-top:2px solid var(--green)!important;}
   tr.drop-below td{border-bottom:2px solid var(--green)!important;}
   .drag-ghost{position:fixed;pointer-events:none;z-index:9999;background:var(--hdr);border:1px solid var(--green);border-radius:4px;padding:4px 10px;font-size:11.5pt;font-family:var(--aptos);color:var(--green-txt);white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
-  .corr-cell{display:flex;flex-direction:column;align-items:center;gap:3px;padding:2px 0;}
+  .disp-stamp{display:block;font-size:8.5pt;color:var(--txt3);margin-top:3px;font-family:var(--aptos);font-style:italic;}
   .corr-counter{font-size:9pt;font-weight:500;font-family:var(--aptos);}
   .corr-counter.counting{color:#f0c040;}
   .corr-counter.done{color:var(--green-txt);}
@@ -864,18 +864,19 @@ function rowHTML(tid, row, i, isDel) {
   }
 
   // Text fields: contenteditable div — strikethrough applied to selected text
-  function textTd(field, html, placeholder) {
+  function textTd(field, html, placeholder, suffix) {
     return '<td><div class="ci" contenteditable="true" ' +
       'data-tid="' + tid + '" data-rowid="' + row.id + '" data-field="' + field + '" ' +
       'data-ph="' + placeholder + '" ' +
       'oninput="updHtml(this)" onblur="scheduleSave()">' +
-      (html || '') + '</div></td>';
+      (html || '') + '</div>' + (suffix || '') + '</td>';
   }
 
   return (
     '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'toggleRow(\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
     '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
-    textTd('lotNumbers',        row.lotNumbers,        'Lot numbers') +
+    textTd('lotNumbers', row.lotNumbers, 'Lot numbers',
+      isDel && row._dispositionedAt ? '<span class="disp-stamp">Dispositioned: ' + row._dispositionedAt + '</span>' : '') +
     dateCell('dateIssued',      row.dateIssued,         'MM/DD/YYYY') +
     dateCell('dateManufactured',row.dateManufactured,   'MM/DD/YYYY') +
     dateCell('dateReturned',    row.dateReturned,       'MM/DD/YYYY') +
@@ -1105,6 +1106,10 @@ function deleteChecked(tid) {
       r._snapIR = dBetween(r.dateManufactured, r.dateReturned);
       r._snapRR = dBetween(r.dateReturned, r.reviewCompleteDate);
       r._snapND = dSince(r.dateReturned);
+      // Stamp the date it was dispositioned
+      var now = new Date();
+      var m = now.getMonth()+1, d = now.getDate(), y = now.getFullYear();
+      r._dispositionedAt = (m<10?'0'+m:m) + '/' + (d<10?'0'+d:d) + '/' + y;
       r.done = false;
       s.deleted.push(r);
     });
@@ -1120,6 +1125,7 @@ function restoreAll(tid) {
     : s.deleted.slice();
   toRestore.forEach(function(r) {
     delete r._snapIR; delete r._snapRR; delete r._snapND;
+    delete r._dispositionedAt;
     s.restored.add(r.id);
     s.rows.push(r);
   });
