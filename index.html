@@ -279,7 +279,7 @@
                 <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
                 <th class="cn">#</th>
                 <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufacture Ended</th>
-                <th>Date Batch Record Returned</th><th>Date QC Returned</th><th>QA Review Date</th><th>Review Complete Date</th><th>Date Review MR</th><th>Date Review QC</th>
+                <th>Date Batch Record Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
             <div class="tbody-wrap" id="prompt-tbody-wrap" onscroll="syncScroll('prompt',this);syncCalcVScroll('prompt',this)">
@@ -327,7 +327,7 @@
                 <th class="cc"><input type="checkbox" id="biofire-sa" onchange="toggleAll('biofire',this)"></th>
                 <th class="cn">#</th>
                 <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufacture Ended</th>
-                <th>Date Batch Record Returned</th><th>Date QC Returned</th><th>QA Review Date</th><th>Review Complete Date</th><th>Date Review MR</th><th>Date Review QC</th>
+                <th>Date Batch Record Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
             <div class="tbody-wrap" id="biofire-tbody-wrap" onscroll="syncScroll('biofire',this);syncCalcVScroll('biofire',this)">
@@ -873,10 +873,10 @@ function rowHTML(tid, row, i, isDel) {
     dateCell('dateManufactured',row.dateManufactured,   'MM/DD/YYYY') +
     dateCell('dateReturned',    row.dateReturned,       'MM/DD/YYYY') +
     (tid !== 'imm' ? dateCell('dateQCReturned', row.dateQCReturned, 'MM/DD/YYYY') : '') +
-    dateCell('initialReviewDate', row.initialReviewDate,'MM/DD/YYYY') +
-    dateCell('reviewCompleteDate',row.reviewCompleteDate,'MM/DD/YYYY') +
     (tid !== 'imm' ? dateCell('dateReviewMR', row.dateReviewMR, 'MM/DD/YYYY') : '') +
-    (tid !== 'imm' ? dateCell('dateReviewQC', row.dateReviewQC, 'MM/DD/YYYY') : '')
+    (tid !== 'imm' ? dateCell('dateReviewQC', row.dateReviewQC, 'MM/DD/YYYY') : '') +
+    dateCell('initialReviewDate', row.initialReviewDate,'MM/DD/YYYY') +
+    dateCell('reviewCompleteDate',row.reviewCompleteDate,'MM/DD/YYYY')
   );
 }
 
