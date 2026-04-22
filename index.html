@@ -192,8 +192,21 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
       <button class="strike-btn" id="strike-btn" onclick="toggleStrikeMode()" title="Strike through a cell — click to enable, then click any cell">S̶ Strike Cell</button>
+      <button class="btn btn-d" onclick="confirmClearAll()" title="Clear all data from all panels">✕ Clear All</button>
       <span style="color:var(--green-txt);font-size:11.5pt" id="sync-users"></span>
       <span style="color:var(--txt3);font-size:11.5pt" id="sync-time"></span>
+    </div>
+  </div>
+
+  <!-- Clear All confirmation modal -->
+  <div id="clear-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
+    <div style="background:var(--bg);border:1px solid var(--red-border);border-radius:10px;padding:28px 32px;width:340px;display:flex;flex-direction:column;gap:16px;">
+      <div style="font-size:13pt;font-weight:500;color:var(--txt);font-family:var(--aptos);">Clear All Data?</div>
+      <div style="font-size:11pt;color:var(--txt3);font-family:var(--aptos);line-height:1.5;">This will permanently erase <strong style="color:var(--red-txt);">all rows</strong> across all three panels, including any dispositioned rows. This cannot be undone.</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn" onclick="closeClearModal()" style="min-width:80px;">Cancel</button>
+        <button class="btn btn-d" onclick="clearAllData()" style="min-width:120px;">Yes, Clear All</button>
+      </div>
     </div>
   </div>
   <div class="outer" id="outer">
@@ -571,6 +584,27 @@ function setSyncStatus(state) {
 
 function mkRow(id) {
   return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', erLirNumber:'', dateReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', done:false, strikes:{} };
+}
+
+function confirmClearAll() {
+  var modal = document.getElementById('clear-modal');
+  modal.style.display = 'flex';
+}
+function closeClearModal() {
+  document.getElementById('clear-modal').style.display = 'none';
+}
+function clearAllData() {
+  closeClearModal();
+  IDS.forEach(function(tid) {
+    T[tid].rows      = [];
+    T[tid].deleted   = [];
+    T[tid].nextId    = 1;
+    T[tid].permSelected.clear();
+    T[tid].restored.clear();
+    T[tid].rowHeights = {};
+    render(tid);
+  });
+  scheduleSave();
 }
 
 // ── Strike mode ──────────────────────────────────────────────
