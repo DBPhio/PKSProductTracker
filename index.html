@@ -53,8 +53,8 @@
   td.cell-struck input,td.cell-struck textarea{text-decoration:line-through;color:#c4a8f0!important;}
   .sync-dot.error{background:#f08080;}
   .outer{display:flex;flex:1;overflow:hidden;}
-  .left-panel{display:flex;flex-direction:column;background:var(--bg);overflow:hidden;min-width:120px;}
-  .right-col{display:flex;flex-direction:column;background:var(--bg3);overflow:hidden;flex:1;min-width:120px;}
+  .left-panel{display:flex;flex-direction:column;background:var(--bg);overflow:hidden;min-width:120px;flex:none;}
+  .right-col{display:flex;flex-direction:column;background:var(--bg3);overflow:hidden;flex:1;min-width:0;}
   .right-section{display:flex;flex-direction:column;overflow:hidden;min-height:60px;background:var(--bg);}
   #biofire-section{flex:1;}
   .v-divider{width:5px;background:#444;cursor:col-resize;flex-shrink:0;transition:background .15s;position:relative;z-index:10;}
@@ -140,12 +140,12 @@
   .sterility-counter.ok{color:var(--green-txt);}
   .sterility-counter.warn{color:#f0c040;}
   .sterility-counter.expired{color:#f08080;}
-  .panel-table-area{display:flex;flex:1;overflow:hidden;}
+  .panel-table-area{display:flex;flex:1;overflow:hidden;min-width:0;}
   .panel-scroll-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
-  .calc-panel{flex-shrink:0;display:flex;flex-direction:column;border-left:2px solid var(--green);background:var(--bg);overflow:hidden;transition:width .2s ease;}
+  .calc-panel{flex-shrink:0;display:flex;flex-direction:column;border-left:2px solid var(--green);background:var(--bg);overflow:hidden;transition:width .2s ease,border .2s ease;}
   .calc-panel-inner{display:flex;flex-direction:column;flex:1;overflow:hidden;}
   .calc-panel-inner .thead-wrap{overflow:hidden;border-bottom:1px solid var(--border);}
-  .calc-panel.collapsed{width:0!important;border-left:none;}
+  .calc-panel.collapsed{width:0!important;border-left:none;min-width:0;}
   .calc-panel-toggle{flex-shrink:0;width:18px;background:var(--calc-bg);border:none;border-left:2px solid var(--green);cursor:pointer;color:var(--green-txt);font-size:8.5pt;font-family:var(--aptos);writing-mode:vertical-rl;text-orientation:mixed;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;}
   .calc-panel-toggle:hover{background:var(--green-bg);}
   .calc-body-wrap{flex:1;overflow:auto;scrollbar-width:none;}
