@@ -251,7 +251,8 @@
             <div class="thead-wrap">
               <table id="imm-calc-htable"><thead><tr>
                 <th class="ca">ER/LIR/NCR Number</th>
-                <th class="ca">Days Manufacture to Return</th>
+                <th class="ca">MR Final Review</th>
+                <th class="ca">QA Final Review</th>
                 <th class="ca">Days Returned to Review</th>
                 <th class="ca">Days not Dispositioned</th>
                 <th class="ca">Corrections</th>
@@ -301,7 +302,8 @@
                 <table id="prompt-calc-htable"><thead><tr>
                   <th class="ca">ER/LIR/NCR Number</th>
                   <th class="ca">Sterility Date</th>
-                  <th class="ca">Days Manufacture to Return</th>
+                  <th class="ca">MR Final Review</th>
+                  <th class="ca">QA Final Review</th>
                   <th class="ca">Days Returned to Review</th>
                   <th class="ca">Days not Dispositioned</th>
                   <th class="ca">Corrections</th>
@@ -349,7 +351,8 @@
               <div class="thead-wrap">
                 <table id="biofire-calc-htable"><thead><tr>
                   <th class="ca">ER/LIR/NCR Number</th>
-                  <th class="ca">Days Manufacture to Return</th>
+                  <th class="ca">MR Final Review</th>
+                  <th class="ca">QA Final Review</th>
                   <th class="ca">Days Returned to Review</th>
                   <th class="ca">Days not Dispositioned</th>
                   <th class="ca">Corrections</th>
@@ -387,10 +390,10 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,90,82,90,88,108];      // 15 cols (IMM)
-const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,90,108,82,90,88,108]; // 19 cols (Prompt)
-const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,90,82,90,88,108]; // 18 cols (BioFire)
-const CALC_COL_COUNT = { imm: 5, prompt: 6, biofire: 5 }; // how many cols live in the fixed calc panel
+const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,90,88,82,90,88,108];    // 16 cols (IMM)
+const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,90,88,108,82,90,88,108]; // 20 cols (Prompt)
+const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,90,88,82,90,88,108]; // 19 cols (BioFire)
+const CALC_COL_COUNT = { imm: 6, prompt: 7, biofire: 6 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -901,6 +904,7 @@ function rowHTML(tid, row, i, isDel) {
 // Calc columns only — rendered into the separate fixed calc panel
 function calcRowHTML(tid, row, isDel) {
   var dIR = isDel ? (row._snapIR !== undefined ? row._snapIR : null) : dBetween(row.dateManufactured, row.dateReturned);
+  var dQA = isDel ? (row._snapQA !== undefined ? row._snapQA : null) : dBetween(row.dateQAReturned, row.initialReviewDate);
   var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.reviewCompleteDate);
   var dND = isDel ? (row._snapND !== undefined ? row._snapND : null) : dSince(row.dateReturned);
 
@@ -948,7 +952,7 @@ function calcRowHTML(tid, row, isDel) {
     '</div></td>';
 
   return calcTextTd('erLirNumber', row.erLirNumber, 'ER/LIR/NCR') +
-    sterCell + cCell(dIR) + cCell(dRR) + cCell(dND) + corrCell;
+    sterCell + cCell(dIR) + cCell(dQA) + cCell(dRR) + cCell(dND) + corrCell;
 }
 
 // ================================================================
@@ -1116,6 +1120,7 @@ function deleteChecked(tid) {
     toDel.forEach(function(r) {
       // Freeze the calculated values at the moment of dispositioning
       r._snapIR = dBetween(r.dateManufactured, r.dateReturned);
+      r._snapQA = dBetween(r.dateQAReturned, r.initialReviewDate);
       r._snapRR = dBetween(r.dateReturned, r.reviewCompleteDate);
       r._snapND = dSince(r.dateReturned);
       // Stamp the date it was dispositioned
@@ -1136,7 +1141,7 @@ function restoreAll(tid) {
     ? s.deleted.filter(function(r){ return s.permSelected.has(r.id); })
     : s.deleted.slice();
   toRestore.forEach(function(r) {
-    delete r._snapIR; delete r._snapRR; delete r._snapND;
+    delete r._snapIR; delete r._snapQA; delete r._snapRR; delete r._snapND;
     delete r._dispositionedAt;
     s.restored.add(r.id);
     s.rows.push(r);
