@@ -481,18 +481,23 @@ function initApp() {
   injectColResizeHandles();
   initPanelResizers();
   initFirebaseListeners();
-  // Watch for any content size changes and keep rows in sync
-  if (window.ResizeObserver) {
-    IDS.forEach(function(tid) {
-      var observer = new ResizeObserver(function() {
-        syncCalcRowHeights(tid);
-      });
-      var mainTable = document.getElementById(tid + '-table');
-      var calcTable = document.getElementById(tid + '-calc-table');
-      if (mainTable) observer.observe(mainTable);
-      if (calcTable) observer.observe(calcTable);
-    });
-  }
+
+  // Watch for any DOM or size changes and keep rows in sync
+  IDS.forEach(function(tid) {
+    var mainTbody = document.getElementById(tid + '-tbody');
+    var calcTbody = document.getElementById(tid + '-calc-tbody');
+    if (mainTbody && calcTbody && window.MutationObserver) {
+      var obs = new MutationObserver(function() { syncCalcRowHeights(tid); });
+      var cfg = { childList: true, subtree: true, characterData: true };
+      obs.observe(mainTbody, cfg);
+      obs.observe(calcTbody, cfg);
+    }
+  });
+
+  // Re-sync on window resize
+  window.addEventListener('resize', function() {
+    IDS.forEach(function(tid){ syncCalcRowHeights(tid); });
+  });
 }
 
 // ================================================================
@@ -788,49 +793,48 @@ function syncMainVScroll(tid, el) {
   _scrollSyncing[tid] = false;
 }
 
+// Core row-height sync — resets all heights, measures natural sizes,
+// then locks both sides to the same max height per row.
+var _syncPending = {};
 function syncCalcRowHeights(tid) {
-  var mainRows = document.querySelectorAll('#' + tid + '-tbody tr');
-  var calcRows = document.querySelectorAll('#' + tid + '-calc-tbody tr');
-  var len = Math.min(mainRows.length, calcRows.length);
-  for (var i = 0; i < len; i++) {
-    // Reset heights so we can measure natural content height
-    mainRows[i].style.height = '';
-    calcRows[i].style.height = '';
-  }
-  // After reset, measure and apply the max of both sides
+  if (_syncPending[tid]) return;
+  _syncPending[tid] = true;
   requestAnimationFrame(function() {
-    var mainRows2 = document.querySelectorAll('#' + tid + '-tbody tr');
-    var calcRows2 = document.querySelectorAll('#' + tid + '-calc-tbody tr');
-    var len2 = Math.min(mainRows2.length, calcRows2.length);
-    for (var j = 0; j < len2; j++) {
-      var mh = mainRows2[j].getBoundingClientRect().height;
-      var ch = calcRows2[j].getBoundingClientRect().height;
-      var h  = Math.max(mh, ch);
-      if (h > 0) {
-        mainRows2[j].style.height = h + 'px';
-        calcRows2[j].style.height = h + 'px';
-      }
+    _syncPending[tid] = false;
+    var mainRows = Array.from(document.querySelectorAll('#' + tid + '-tbody tr'));
+    var calcRows = Array.from(document.querySelectorAll('#' + tid + '-calc-tbody tr'));
+    var len = Math.min(mainRows.length, calcRows.length);
+    if (!len) return;
+    // 1. Clear all explicit heights so natural content height is revealed
+    for (var i = 0; i < len; i++) {
+      mainRows[i].style.height = '';
+      calcRows[i].style.height = '';
     }
+    // 2. Force a reflow then lock both to max height
+    requestAnimationFrame(function() {
+      mainRows = Array.from(document.querySelectorAll('#' + tid + '-tbody tr'));
+      calcRows = Array.from(document.querySelectorAll('#' + tid + '-calc-tbody tr'));
+      len = Math.min(mainRows.length, calcRows.length);
+      for (var j = 0; j < len; j++) {
+        var mh = mainRows[j].getBoundingClientRect().height;
+        var ch = calcRows[j].getBoundingClientRect().height;
+        var h  = Math.ceil(Math.max(mh, ch));
+        if (h > 0) {
+          mainRows[j].style.height = h + 'px';
+          calcRows[j].style.height = h + 'px';
+        }
+      }
+      // Re-sync scroll position after height changes
+      var mw = document.getElementById(tid + '-tbody-wrap');
+      var cb = document.getElementById(tid + '-calc-body');
+      if (mw && cb) cb.scrollTop = mw.scrollTop;
+    });
   });
 }
 
-// Sync a single row by rowId — called live on input
+// Sync a single row — called on every keystroke / date change
 function syncRowHeight(tid, rowId) {
-  var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
-               document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]');
-  var calcTr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + rowId + '"]');
-  if (!mainTr || !calcTr) return;
-  mainTr.style.height = '';
-  calcTr.style.height = '';
-  requestAnimationFrame(function() {
-    var mh = mainTr.getBoundingClientRect().height;
-    var ch = calcTr.getBoundingClientRect().height;
-    var h  = Math.max(mh, ch);
-    if (h > 0) {
-      mainTr.style.height = h + 'px';
-      calcTr.style.height = h + 'px';
-    }
-  });
+  syncCalcRowHeights(tid);
 }
 
 // ================================================================
@@ -1044,8 +1048,11 @@ function render(tid, remoteIds) {
   }
 
   applyColWidths(tid);
-  // Sync row heights between main and calc tables after layout
-  requestAnimationFrame(function(){ syncCalcRowHeights(tid); });
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      syncCalcRowHeights(tid);
+    });
+  });
 }
 
 // ================================================================
