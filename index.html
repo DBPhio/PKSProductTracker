@@ -74,17 +74,18 @@
   .btn-d:hover{background:var(--red-bg);}
   .btn-r{border-color:var(--green);color:var(--green-txt);}
   .btn-r:hover{background:var(--green-bg);}
-  .thead-wrap{flex-shrink:0;overflow-x:hidden;overflow-y:scroll;background:var(--hdr);border-bottom:1px solid var(--border);height:var(--thead-h);}
+  .thead-wrap{flex-shrink:0;overflow-x:hidden;overflow-y:scroll;background:var(--hdr);border-bottom:1px solid var(--border);height:var(--thead-h);max-width:100%;}
   .thead-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;height:100%;}
   .thead-wrap::-webkit-scrollbar{width:6px;height:0;background:transparent;}
   .thead-wrap::-webkit-scrollbar-thumb{background:transparent;}
-  .tbody-wrap{flex:1;overflow-x:auto;overflow-y:scroll;border:1px solid var(--border);border-top:none;background:var(--bg);}
+  .tbody-wrap{flex:1;overflow-x:auto;overflow-y:scroll;border:1px solid var(--border);border-top:none;background:var(--bg);max-width:100%;}
   .tbody-wrap::-webkit-scrollbar{width:6px;height:6px;}
   .tbody-wrap::-webkit-scrollbar-track{background:transparent;}
   .tbody-wrap::-webkit-scrollbar-thumb{background:#555;border-radius:4px;}
   .tbody-wrap::-webkit-scrollbar-thumb:hover{background:#777;}
   .tbody-wrap::-webkit-scrollbar-corner{background:transparent;}
   .tbody-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;}
+  .panel-scroll-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;max-width:100%;}
   th{padding:5px 6px;text-align:center;font-weight:500;font-size:10pt;color:var(--txt2);border:var(--grid);white-space:normal;word-break:break-word;vertical-align:middle;overflow:hidden;position:relative;font-family:var(--aptos);line-height:1.3;background:var(--hdr);}
   th.cc{text-align:center;vertical-align:middle;}
   th.cn{text-align:center;color:var(--txt3);vertical-align:middle;}
@@ -153,7 +154,6 @@
   .sterility-counter.warn{color:#f0c040;}
   .sterility-counter.expired{color:#f08080;}
   .panel-table-area{display:flex;flex:1;overflow:hidden;min-width:0;}
-  .panel-scroll-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
   .calc-panel{flex-shrink:0;display:flex;flex-direction:column;border-left:2px solid var(--green);background:var(--bg);overflow:hidden;transition:width .2s ease,border .2s ease;}
   .calc-panel-inner{display:flex;flex-direction:column;flex:1;overflow:hidden;}
   .calc-panel-inner .thead-wrap{overflow:hidden;border-bottom:1px solid var(--border);height:var(--thead-h);}
