@@ -230,7 +230,7 @@
             <div class="thead-wrap">
               <table id="imm-calc-htable"><thead><tr>
                 <th class="ca">ER/LIR/NCR Number</th>
-                <th class="ca">Days Issued to Return</th>
+                <th class="ca">Days Manufacture to Return</th>
                 <th class="ca">Days Returned to Review</th>
                 <th class="ca">Days not Dispositioned</th>
               </tr></thead></table>
@@ -279,7 +279,7 @@
                 <table id="prompt-calc-htable"><thead><tr>
                   <th class="ca">ER/LIR/NCR Number</th>
                   <th class="ca">Sterility Date</th>
-                  <th class="ca">Days Issued to Return</th>
+                  <th class="ca">Days Manufacture to Return</th>
                   <th class="ca">Days Returned to Review</th>
                   <th class="ca">Days not Dispositioned</th>
                 </tr></thead></table>
@@ -326,7 +326,7 @@
               <div class="thead-wrap">
                 <table id="biofire-calc-htable"><thead><tr>
                   <th class="ca">ER/LIR/NCR Number</th>
-                  <th class="ca">Days Issued to Return</th>
+                  <th class="ca">Days Manufacture to Return</th>
                   <th class="ca">Days Returned to Review</th>
                   <th class="ca">Days not Dispositioned</th>
                 </tr></thead></table>
@@ -848,7 +848,7 @@ function rowHTML(tid, row, i, isDel) {
 
 // Calc columns only — rendered into the separate fixed calc panel
 function calcRowHTML(tid, row, isDel) {
-  var dIR = isDel ? (row._snapIR !== undefined ? row._snapIR : null) : dBetween(row.dateIssued, row.dateReturned);
+  var dIR = isDel ? (row._snapIR !== undefined ? row._snapIR : null) : dBetween(row.dateManufactured, row.dateReturned);
   var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.reviewCompleteDate);
   var dND = isDel ? (row._snapND !== undefined ? row._snapND : null) : dSince(row.dateReturned);
 
@@ -1039,7 +1039,7 @@ function deleteChecked(tid) {
   setTimeout(function() {
     toDel.forEach(function(r) {
       // Freeze the calculated values at the moment of dispositioning
-      r._snapIR = dBetween(r.dateIssued, r.dateReturned);
+      r._snapIR = dBetween(r.dateManufactured, r.dateReturned);
       r._snapRR = dBetween(r.dateReturned, r.reviewCompleteDate);
       r._snapND = dSince(r.dateReturned);
       r.done = false;
