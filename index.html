@@ -136,7 +136,11 @@
   tr.drop-above td{border-top:2px solid var(--green)!important;}
   tr.drop-below td{border-bottom:2px solid var(--green)!important;}
   .drag-ghost{position:fixed;pointer-events:none;z-index:9999;background:var(--hdr);border:1px solid var(--green);border-radius:4px;padding:4px 10px;font-size:11.5pt;font-family:var(--aptos);color:var(--green-txt);white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
-  .sterility-counter{display:block;text-align:center;font-size:9pt;margin-top:3px;font-family:var(--aptos);font-weight:500;}
+  .corr-cell{display:flex;flex-direction:column;align-items:center;gap:3px;padding:2px 0;}
+  .corr-counter{font-size:9pt;font-weight:500;font-family:var(--aptos);}
+  .corr-counter.counting{color:#f0c040;}
+  .corr-counter.done{color:var(--green-txt);}
+  .corr-check{width:13px;height:13px;cursor:pointer;accent-color:var(--green);}
   .sterility-counter.ok{color:var(--green-txt);}
   .sterility-counter.warn{color:#f0c040;}
   .sterility-counter.expired{color:#f08080;}
@@ -231,7 +235,7 @@
               <th class="cc"><input type="checkbox" id="imm-sa" onchange="toggleAll('imm',this)"></th>
               <th class="cn">#</th>
               <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufacture Ended</th>
-              <th>Date Batch Record Returned</th><th>QA Review Date</th><th>Review Complete Date</th>
+              <th>Date Batch Record Returned</th><th>QA Review Date</th><th>Review Complete Date</th><th>Corrections</th>
             </tr></thead></table>
           </div>
           <div class="tbody-wrap" id="imm-tbody-wrap" onscroll="syncScroll('imm',this);syncCalcVScroll('imm',this)">
@@ -246,6 +250,7 @@
                 <th class="ca">Days Manufacture to Return</th>
                 <th class="ca">Days Returned to Review</th>
                 <th class="ca">Days not Dispositioned</th>
+                <th class="ca">Corrections</th>
               </tr></thead></table>
             </div>
             <div class="calc-body-wrap" id="imm-calc-body" onscroll="syncMainVScroll('imm',this)">
@@ -279,7 +284,7 @@
                 <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
                 <th class="cn">#</th>
                 <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufacture Ended</th>
-                <th>Date Batch Record Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Review Complete Date</th>
+                <th>Date Batch Record Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Review Complete Date</th><th>Corrections</th>
               </tr></thead></table>
             </div>
             <div class="tbody-wrap" id="prompt-tbody-wrap" onscroll="syncScroll('prompt',this);syncCalcVScroll('prompt',this)">
@@ -295,6 +300,7 @@
                   <th class="ca">Days Manufacture to Return</th>
                   <th class="ca">Days Returned to Review</th>
                   <th class="ca">Days not Dispositioned</th>
+                  <th class="ca">Corrections</th>
                 </tr></thead></table>
               </div>
               <div class="calc-body-wrap" id="prompt-calc-body" onscroll="syncMainVScroll('prompt',this)">
@@ -327,7 +333,7 @@
                 <th class="cc"><input type="checkbox" id="biofire-sa" onchange="toggleAll('biofire',this)"></th>
                 <th class="cn">#</th>
                 <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufacture Ended</th>
-                <th>Date Batch Record Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Review Complete Date</th>
+                <th>Date Batch Record Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Review Complete Date</th><th>Corrections</th>
               </tr></thead></table>
             </div>
             <div class="tbody-wrap" id="biofire-tbody-wrap" onscroll="syncScroll('biofire',this);syncCalcVScroll('biofire',this)">
@@ -342,6 +348,7 @@
                   <th class="ca">Days Manufacture to Return</th>
                   <th class="ca">Days Returned to Review</th>
                   <th class="ca">Days not Dispositioned</th>
+                  <th class="ca">Corrections</th>
                 </tr></thead></table>
               </div>
               <div class="calc-body-wrap" id="biofire-calc-body" onscroll="syncMainVScroll('biofire',this)">
@@ -376,10 +383,10 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,90,82,90,88];             // 12 cols (IMM)
-const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,90,108,82,90,88]; // 16 cols (Prompt)
-const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,90,82,90,88]; // 15 cols (BioFire)
-const CALC_COL_COUNT = { imm: 4, prompt: 5, biofire: 4 }; // how many cols live in the fixed calc panel
+const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,90,82,90,88,108];         // 14 cols (IMM)
+const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,90,108,82,90,88,108]; // 18 cols (Prompt)
+const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,90,82,90,88,108]; // 17 cols (BioFire)
+const CALC_COL_COUNT = { imm: 5, prompt: 6, biofire: 5 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -583,7 +590,7 @@ function setSyncStatus(state) {
 // ================================================================
 
 function mkRow(id) {
-  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', erLirNumber:'', dateReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', done:false, strikes:{} };
+  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', erLirNumber:'', dateReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, done:false, strikes:{} };
 }
 
 function confirmClearAll() {
@@ -876,7 +883,8 @@ function rowHTML(tid, row, i, isDel) {
     (tid !== 'imm' ? dateCell('dateReviewMR', row.dateReviewMR, 'MM/DD/YYYY') : '') +
     (tid !== 'imm' ? dateCell('dateReviewQC', row.dateReviewQC, 'MM/DD/YYYY') : '') +
     dateCell('initialReviewDate', row.initialReviewDate,'MM/DD/YYYY') +
-    dateCell('reviewCompleteDate',row.reviewCompleteDate,'MM/DD/YYYY')
+    dateCell('reviewCompleteDate',row.reviewCompleteDate,'MM/DD/YYYY') +
+    dateCell('correctionsDate',   row.correctionsDate,   'MM/DD/YYYY')
   );
 }
 
@@ -918,8 +926,19 @@ function calcRowHTML(tid, row, isDel) {
       '</div>' +
       ctr + '</td>';
   }
+  // Corrections — counter of days since correctionsDate, stopped by checkbox
+  var corrDays = (!row.correctionsComplete && row.correctionsDate) ? dSince(row.correctionsDate) : null;
+  var corrLabel = row.correctionsComplete
+    ? '<span class="corr-counter done">✓ Complete</span>'
+    : (corrDays !== null ? '<span class="corr-counter counting">' + corrDays + 'd</span>' : '<span class="corr-counter" style="color:var(--txt3);">—</span>');
+  var corrCell = '<td class="ca"><div class="corr-cell">' +
+    corrLabel +
+    '<input type="checkbox" class="corr-check"' + (row.correctionsComplete ? ' checked' : '') +
+    ' onchange="toggleCorrections(\'' + tid + '\',' + row.id + ',this)" title="Mark corrections complete">' +
+    '</div></td>';
+
   return calcTextTd('erLirNumber', row.erLirNumber, 'ER/LIR/NCR') +
-    sterCell + cCell(dIR) + cCell(dRR) + cCell(dND);
+    sterCell + cCell(dIR) + cCell(dRR) + cCell(dND) + corrCell;
 }
 
 // ================================================================
@@ -1032,6 +1051,16 @@ function render(tid, remoteIds) {
 //  DATA MUTATIONS
 // ================================================================
 
+function toggleCorrections(tid, id, cb) {
+  var s = T[tid];
+  var r = s.rows.find(function(r){ return r.id === id; }) ||
+          s.deleted.find(function(r){ return r.id === id; });
+  if (!r) return;
+  r.correctionsComplete = cb.checked;
+  render(tid);
+  scheduleSave();
+}
+
 function toggleRow(tid, id, cb) {
   var r = T[tid].rows.find(function(r){ return r.id === id; });
   if (r) { r.done = cb.checked; render(tid); scheduleSave(); }
@@ -1110,7 +1139,7 @@ function upd(tid, id, field, value) {
           s.deleted.find(function(r){ return r.id === id; });
   if (!r) return;
   // Normalise date fields to MM/DD/YYYY on save
-  var dateFields = ['dateIssued','dateManufactured','dateReturned','dateQCReturned','initialReviewDate','reviewCompleteDate','sterilityDate'];
+  var dateFields = ['dateIssued','dateManufactured','dateReturned','dateQCReturned','initialReviewDate','reviewCompleteDate','sterilityDate','correctionsDate'];
   if (dateFields.indexOf(field) !== -1 && value) {
     var norm = fmtDate(value);
     value = norm || value;
