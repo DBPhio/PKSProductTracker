@@ -288,7 +288,7 @@
                 <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
                 <th class="cn">#</th>
                 <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufacture Ended</th>
-                <th>Date MR Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Corrections</th><th>Review Complete Date</th>
+                <th>Date MR Returned</th><th>Date QA Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Corrections</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
             <div class="tbody-wrap" id="prompt-tbody-wrap" onscroll="syncScroll('prompt',this);syncCalcVScroll('prompt',this)">
@@ -337,7 +337,7 @@
                 <th class="cc"><input type="checkbox" id="biofire-sa" onchange="toggleAll('biofire',this)"></th>
                 <th class="cn">#</th>
                 <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufacture Ended</th>
-                <th>Date MR Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Corrections</th><th>Review Complete Date</th>
+                <th>Date MR Returned</th><th>Date QA Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Corrections</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
             <div class="tbody-wrap" id="biofire-tbody-wrap" onscroll="syncScroll('biofire',this);syncCalcVScroll('biofire',this)">
@@ -388,8 +388,8 @@ const FIREBASE_CONFIG = {
 
 const IDS = ['imm','prompt','biofire'];
 const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,90,82,90,88,108];      // 15 cols (IMM)
-const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,90,108,82,90,88,108]; // 18 cols (Prompt)
-const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,90,82,90,88,108]; // 17 cols (BioFire)
+const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,90,108,82,90,88,108]; // 19 cols (Prompt)
+const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,90,82,90,88,108]; // 18 cols (BioFire)
 const CALC_COL_COUNT = { imm: 5, prompt: 6, biofire: 5 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
@@ -888,7 +888,7 @@ function rowHTML(tid, row, i, isDel) {
     dateCell('dateIssued',      row.dateIssued,         'MM/DD/YYYY') +
     dateCell('dateManufactured',row.dateManufactured,   'MM/DD/YYYY') +
     dateCell('dateReturned',    row.dateReturned,       'MM/DD/YYYY') +
-    (tid === 'imm' ? dateCell('dateQAReturned', row.dateQAReturned, 'MM/DD/YYYY') : '') +
+    dateCell('dateQAReturned',  row.dateQAReturned,     'MM/DD/YYYY') +
     (tid !== 'imm' ? dateCell('dateQCReturned', row.dateQCReturned, 'MM/DD/YYYY') : '') +
     (tid !== 'imm' ? dateCell('dateReviewMR', row.dateReviewMR, 'MM/DD/YYYY') : '') +
     (tid !== 'imm' ? dateCell('dateReviewQC', row.dateReviewQC, 'MM/DD/YYYY') : '') +
