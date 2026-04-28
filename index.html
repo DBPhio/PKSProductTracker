@@ -951,7 +951,7 @@ function rowHTML(tid, row, i, isDel) {
     if (field === 'dateManufactured') {
       if (value && row.dateIssued) {
         var mfgDays = dBetween(row.dateIssued, value);
-        mfgCounter = mfgDays !== null ? '<span class="mfg-counter stopped">' + mfgDays + 'd</span>' : '';
+        mfgCounter = mfgDays !== null ? '<span class="mfg-counter stopped" style="display:flex;align-items:center;gap:3px;"><span style="color:var(--txt3);font-size:8.5pt;font-weight:400;">MR length:</span>' + mfgDays + 'd</span>' : '';
       }
     }
     return '<td class="' + cls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'' + field + '\')">' +
