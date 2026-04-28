@@ -144,7 +144,9 @@
   tr.drop-above td{border-top:2px solid var(--green)!important;}
   tr.drop-below td{border-bottom:2px solid var(--green)!important;}
   .drag-ghost{position:fixed;pointer-events:none;z-index:9999;background:var(--hdr);border:1px solid var(--green);border-radius:4px;padding:4px 10px;font-size:11.5pt;font-family:var(--aptos);color:var(--green-txt);white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
-  .disp-stamp{display:block;font-size:8.5pt;color:var(--txt3);margin-top:3px;font-family:var(--aptos);font-style:italic;}
+  .mfg-counter{display:block;font-size:9pt;font-weight:500;font-family:var(--aptos);margin-top:3px;text-align:center;}
+  .mfg-counter.counting{color:#f0c040;}
+  .mfg-counter.stopped{color:var(--green-txt);}
   .corr-counter{font-size:var(--fs);font-weight:500;font-family:var(--aptos);}
   .corr-counter.counting{color:#f0c040;}
   .corr-counter.done{color:var(--green-txt);}
@@ -947,6 +949,19 @@ function rowHTML(tid, row, i, isDel) {
     var dotId2 = 'ad-' + tid + '-' + row.id + '-' + field;
     if (meta && meta.length) _auditRegistry[dotId2] = meta;
     var dot   = meta && meta.length ? '<span class="audit-dot" onclick="showAuditPopover(event,\'' + dotId2 + '\')" title="Edit history"></span>' : '';
+    // Manufacturing counter: counts days from Date Manufacture Ended, stops when Date MR Returned is filled
+    var mfgCounter = '';
+    if (field === 'dateManufactured') {
+      if (value) {
+        if (row.dateReturned) {
+          var stoppedDays = dBetween(value, row.dateReturned);
+          mfgCounter = stoppedDays !== null ? '<span class="mfg-counter stopped">' + stoppedDays + 'd</span>' : '';
+        } else {
+          var liveDays = dSince(value);
+          mfgCounter = liveDays !== null ? '<span class="mfg-counter counting">' + liveDays + 'd</span>' : '';
+        }
+      }
+    }
     return '<td class="' + cls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'' + field + '\')">' +
       '<div class="date-wrap" onclick="event.stopPropagation()">' +
         '<input type="text" id="' + tId + '" class="di" inputmode="numeric" placeholder="' + placeholder + '" value="' + esc(fmtDate(value)) + '" ' +
@@ -955,7 +970,7 @@ function rowHTML(tid, row, i, isDel) {
         '<button class="date-cal-btn" onclick="pickDate(\'' + hId + '\')" title="Pick date">📅</button>' +
         '<input type="date" id="' + hId + '" class="date-hidden" value="' + hVal + '" ' +
           'onchange="syncPicker(\'' + hId + '\',\'' + tId + '\',\'' + tid + '\',' + row.id + ',\'' + field + '\')">' +
-      '</div>' + dot +
+      '</div>' + dot + mfgCounter +
     '</td>';
   }
 
