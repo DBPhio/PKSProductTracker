@@ -248,7 +248,7 @@
             <table id="imm-htable"><thead><tr>
               <th class="cc"><input type="checkbox" id="imm-sa" onchange="toggleAll('imm',this)"></th>
               <th class="cn">#</th>
-              <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufacture Ended</th>
+              <th>Lot Numbers</th><th>Date Issued</th><th>Date MR Ended</th>
               <th>Date MR Returned</th><th>Date QA Returned</th><th>QA Review Date</th><th>Corrections</th><th>Review Complete Date</th>
             </tr></thead></table>
           </div>
@@ -298,7 +298,7 @@
               <table id="prompt-htable"><thead><tr>
                 <th class="cc"><input type="checkbox" id="prompt-sa" onchange="toggleAll('prompt',this)"></th>
                 <th class="cn">#</th>
-                <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufacture Ended</th>
+                <th>Lot Numbers</th><th>Date Issued</th><th>Date MR Ended</th>
                 <th>Date MR Returned</th><th>Date QA Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Corrections</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
@@ -349,7 +349,7 @@
               <table id="biofire-htable"><thead><tr>
                 <th class="cc"><input type="checkbox" id="biofire-sa" onchange="toggleAll('biofire',this)"></th>
                 <th class="cn">#</th>
-                <th>Lot Numbers</th><th>Date Issued</th><th>Date Manufacture Ended</th>
+                <th>Lot Numbers</th><th>Date Issued</th><th>Date MR Ended</th>
                 <th>Date MR Returned</th><th>Date QA Returned</th><th>Date QC Returned</th><th>MR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Corrections</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
@@ -946,17 +946,12 @@ function rowHTML(tid, row, i, isDel) {
     var dotId2 = 'ad-' + tid + '-' + row.id + '-' + field;
     if (meta && meta.length) _auditRegistry[dotId2] = meta;
     var dot   = meta && meta.length ? '<span class="audit-dot" onclick="showAuditPopover(event,\'' + dotId2 + '\')" title="Edit history"></span>' : '';
-    // Manufacturing counter: counts days from Date Manufacture Ended, stops when Date MR Returned is filled
+    // Counter: shows days between Date Issued and Date MR Ended when both are filled
     var mfgCounter = '';
     if (field === 'dateManufactured') {
-      if (value) {
-        if (row.dateReturned) {
-          var stoppedDays = dBetween(value, row.dateReturned);
-          mfgCounter = stoppedDays !== null ? '<span class="mfg-counter stopped">' + stoppedDays + 'd</span>' : '';
-        } else {
-          var liveDays = dSince(value);
-          mfgCounter = liveDays !== null ? '<span class="mfg-counter counting">' + liveDays + 'd</span>' : '';
-        }
+      if (value && row.dateIssued) {
+        var mfgDays = dBetween(row.dateIssued, value);
+        mfgCounter = mfgDays !== null ? '<span class="mfg-counter stopped">' + mfgDays + 'd</span>' : '';
       }
     }
     return '<td class="' + cls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'' + field + '\')">' +
