@@ -824,7 +824,34 @@ function fmtDate(val) {
 function pickDate(hiddenId) {
   var h = document.getElementById(hiddenId);
   if (!h) return;
+  // Reposition the hidden input so the browser picker stays on screen
+  var btn = h.previousElementSibling; // the 📅 button
+  if (btn) {
+    var rect = btn.getBoundingClientRect();
+    var spaceRight = window.innerWidth - rect.right;
+    // If less than 300px to the right, anchor picker to the left of the button
+    h.style.position = 'fixed';
+    h.style.top = rect.bottom + 'px';
+    if (spaceRight < 300) {
+      h.style.left = Math.max(4, rect.left - 260) + 'px';
+    } else {
+      h.style.left = rect.left + 'px';
+    }
+    h.style.opacity = '0';
+    h.style.width = '1px';
+    h.style.height = '1px';
+    h.style.pointerEvents = 'auto';
+  }
   try { h.showPicker(); } catch(e) { h.click(); }
+  // Reset after picker closes
+  setTimeout(function() {
+    h.style.position = '';
+    h.style.top = '';
+    h.style.left = '';
+    h.style.width = '';
+    h.style.height = '';
+    h.style.pointerEvents = '';
+  }, 500);
 }
 
 // Called when the hidden date picker changes — syncs to the text input and saves
