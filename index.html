@@ -1504,6 +1504,19 @@ function startRowResize(e, tid, rowId) {
 }
 
 function initPanelResizers() {
+  // Default 50/50 split between Prompt and BioFire
+  requestAnimationFrame(function() {
+    var rightCol = document.getElementById('right-col');
+    var hDiv = document.getElementById('h-divider');
+    var ps = document.getElementById('prompt-section');
+    if (rightCol && ps && hDiv) {
+      var totalH = rightCol.getBoundingClientRect().height;
+      var divH = hDiv.getBoundingClientRect().height;
+      ps.style.height = Math.floor((totalH - divH) / 2) + 'px';
+      ps.style.flex = 'none';
+    }
+  });
+
   document.getElementById('v-divider').addEventListener('mousedown', function(e) {
     e.preventDefault(); document.body.classList.add('nosel');
     document.getElementById('v-divider').classList.add('active');
