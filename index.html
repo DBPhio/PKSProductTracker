@@ -1047,9 +1047,12 @@ function calcRowHTML(tid, row, isDel) {
       ctr + '</td>';
   }
   // Corrections — counter of days since correctionsDate, stopped by checkbox
-  var corrDays = (!row.correctionsComplete && row.correctionsDate) ? dSince(row.correctionsDate) : null;
+  var corrDays = row.correctionsDate ? dSince(row.correctionsDate) : null;
+  // When complete, freeze the count at the day it was checked (use dBetween if completedAt stored, else current dSince)
+  var frozenDays = row.correctionsComplete ? (row._corrDaysAtComplete !== undefined ? row._corrDaysAtComplete : corrDays) : null;
   var corrLabel = row.correctionsComplete
-    ? '<span class="corr-counter done">✓ Complete</span>'
+    ? (frozenDays !== null ? '<span class="corr-counter counting">' + frozenDays + 'd</span>' : '') +
+      '<span class="corr-counter done">✓ Complete</span>'
     : (corrDays !== null ? '<span class="corr-counter counting">' + corrDays + 'd</span>' : '<span class="corr-counter" style="color:var(--txt3);">—</span>');
   var corrCell = '<td class="ca"><div class="corr-cell">' +
     corrLabel +
@@ -1180,6 +1183,12 @@ function toggleCorrections(tid, id, cb) {
           s.deleted.find(function(r){ return r.id === id; });
   if (!r) return;
   r.correctionsComplete = cb.checked;
+  if (cb.checked && r.correctionsDate) {
+    // Freeze the count at this moment
+    r._corrDaysAtComplete = dSince(r.correctionsDate);
+  } else {
+    delete r._corrDaysAtComplete;
+  }
   render(tid);
   scheduleSave();
 }
