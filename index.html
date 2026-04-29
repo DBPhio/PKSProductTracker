@@ -120,7 +120,7 @@
   .date-wrap .di{flex:1;}
   .date-cal-btn{flex-shrink:0;background:transparent;border:none;cursor:pointer;color:var(--txt3);font-size:10pt;padding:0 1px;line-height:1;transition:color .15s;}
   .date-cal-btn:hover{color:var(--green-txt);}
-  .date-hidden{position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;top:-9999px;left:-9999px;}
+  .date-hidden{position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;border:none;background:transparent;}
   td:focus-within{outline:1.5px solid var(--green);outline-offset:-1.5px;}
   tr.done .ci,tr.done .di{color:var(--done-txt);}
   .flash{animation:flashRow .35s ease;}
@@ -828,13 +828,10 @@ function pickDate(hiddenId) {
   if (btn) {
     var rect = btn.getBoundingClientRect();
     var spaceRight = window.innerWidth - rect.left;
-    // Position the input fixed so picker anchors correctly
-    h.style.cssText = 'position:fixed;opacity:0;pointer-events:auto;width:1px;height:1px;top:' +
-      rect.bottom + 'px;left:' +
-      (spaceRight < 320 ? Math.max(4, rect.left - 280) : rect.left) + 'px;';
+    h.style.top  = rect.bottom + 'px';
+    h.style.left = (spaceRight < 320 ? Math.max(4, rect.left - 280) : rect.left) + 'px';
   }
   try { h.showPicker(); } catch(e) { h.click(); }
-  // No reset needed — render() recreates inputs on next update
 }
 
 // Called when the hidden date picker changes — syncs to the text input and saves
