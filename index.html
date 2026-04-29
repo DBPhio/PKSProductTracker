@@ -260,7 +260,8 @@
           <div class="calc-panel-inner">
             <div class="thead-wrap">
               <table id="imm-calc-htable"><thead><tr>
-                <th class="ca">ER/LIR/NCR Number</th>
+                <th class="ca">ER Number</th>
+                <th class="ca">LIR/NCR Number</th>
                 <th class="ca">MR Final Review</th>
                 <th class="ca">QA Final Review</th>
                 <th class="ca">Days Returned to Review</th>
@@ -310,7 +311,8 @@
             <div class="calc-panel-inner">
               <div class="thead-wrap">
                 <table id="prompt-calc-htable"><thead><tr>
-                  <th class="ca">ER/LIR/NCR Number</th>
+                  <th class="ca">ER Number</th>
+                <th class="ca">LIR/NCR Number</th>
                   <th class="ca">Sterility Date</th>
                   <th class="ca">MR Final Review</th>
                   <th class="ca">QA Final Review</th>
@@ -361,7 +363,8 @@
             <div class="calc-panel-inner">
               <div class="thead-wrap">
                 <table id="biofire-calc-htable"><thead><tr>
-                  <th class="ca">ER/LIR/NCR Number</th>
+                  <th class="ca">ER Number</th>
+                <th class="ca">LIR/NCR Number</th>
                   <th class="ca">MR Final Review</th>
                   <th class="ca">QA Final Review</th>
                   <th class="ca">QC Final Review</th>
@@ -402,10 +405,10 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,105,82,82,82,82,75];     // 16 cols (IMM)
-const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,105,98,82,82,82,82,82,75]; // 21 cols (Prompt)
-const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,105,82,82,82,82,82,75]; // 20 cols (BioFire)
-const CALC_COL_COUNT = { imm: 6, prompt: 8, biofire: 7 }; // how many cols live in the fixed calc panel
+const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,105,105,82,82,82,82,75];  // 17 cols (IMM)
+const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,98,82,82,82,82,82,75]; // 22 cols (Prompt)
+const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,82,82,82,82,82,75]; // 21 cols (BioFire)
+const CALC_COL_COUNT = { imm: 7, prompt: 9, biofire: 8 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -616,7 +619,7 @@ function setSyncStatus(state) {
 // ================================================================
 
 function mkRow(id) {
-  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', erLirNumber:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, done:false, strikes:{}, _cellMeta:{} };
+  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', erLirNumber:'', lirNcrNumber:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, done:false, strikes:{}, _cellMeta:{} };
 }
 
 function confirmClearAll() {
@@ -1062,7 +1065,8 @@ function calcRowHTML(tid, row, isDel) {
     ' onchange="toggleCorrections(\'' + tid + '\',' + row.id + ',this)" title="Mark corrections complete">' +
     '</div></td>';
 
-  return calcTextTd('erLirNumber', row.erLirNumber, 'ER/LIR/NCR') +
+  return calcTextTd('erLirNumber', row.erLirNumber, 'ER Number') +
+    calcTextTd('lirNcrNumber', row.lirNcrNumber, 'LIR/NCR') +
     sterCell + cCell(dIR) + cCell(dQA) + (tid !== 'imm' ? cCell(dQC) : '') + cCell(dRR) + cCell(dND) + corrCell;
 }
 
