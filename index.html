@@ -221,6 +221,14 @@
     <div style="background:var(--bg);border:1px solid var(--red-border);border-radius:10px;padding:28px 32px;width:340px;display:flex;flex-direction:column;gap:16px;">
       <div style="font-size:13pt;font-weight:500;color:var(--txt);font-family:var(--aptos);">Clear All Data?</div>
       <div style="font-size:11pt;color:var(--txt3);font-family:var(--aptos);line-height:1.5;">This will permanently erase <strong style="color:var(--red-txt);">all rows</strong> across all three panels, including any dispositioned rows. This cannot be undone.</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <label style="font-size:10pt;color:var(--txt3);font-family:var(--aptos);">Enter password to confirm:</label>
+        <input type="password" id="clear-pw" placeholder="Password" autocomplete="off"
+          style="background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--txt);font-size:11pt;font-family:var(--aptos);outline:none;width:100%;"
+          oninput="document.getElementById('clear-pw-err').style.display='none'"
+          onkeydown="if(event.key==='Enter')clearAllData()">
+        <div id="clear-pw-err" style="display:none;font-size:9.5pt;color:var(--red-txt);font-family:var(--aptos);">Incorrect password.</div>
+      </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button class="btn" onclick="closeClearModal()" style="min-width:80px;">Cancel</button>
         <button class="btn btn-d" onclick="clearAllData()" style="min-width:120px;">Yes, Clear All</button>
@@ -624,12 +632,23 @@ function mkRow(id) {
 
 function confirmClearAll() {
   var modal = document.getElementById('clear-modal');
+  document.getElementById('clear-pw').value = '';
+  document.getElementById('clear-pw-err').style.display = 'none';
   modal.style.display = 'flex';
+  setTimeout(function(){ document.getElementById('clear-pw').focus(); }, 50);
 }
 function closeClearModal() {
   document.getElementById('clear-modal').style.display = 'none';
+  document.getElementById('clear-pw').value = '';
+  document.getElementById('clear-pw-err').style.display = 'none';
 }
 function clearAllData() {
+  var pw = document.getElementById('clear-pw').value;
+  if (pw !== 'ClearTracker') {
+    document.getElementById('clear-pw-err').style.display = 'block';
+    document.getElementById('clear-pw').focus();
+    return;
+  }
   closeClearModal();
   IDS.forEach(function(tid) {
     T[tid].rows      = [];
