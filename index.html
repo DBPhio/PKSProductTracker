@@ -1004,7 +1004,7 @@ function rowHTML(tid, row, i, isDel) {
     return '<td><div class="ci" contenteditable="true" ' +
       'data-tid="' + tid + '" data-rowid="' + row.id + '" data-field="' + field + '" ' +
       'data-ph="' + placeholder + '" ' +
-      'oninput="updHtml(this)" onblur="scheduleSave()">' +
+      'oninput="updHtml(this)" onblur="updHtmlBlur(this)">' +
       (html || '') + '</div>' + (suffix || '') + dot + '</td>';
   }
 
@@ -1043,7 +1043,7 @@ function calcRowHTML(tid, row, isDel) {
     return '<td class="ca" style="text-align:left;vertical-align:top;"><div class="ci" contenteditable="true" ' +
       'data-tid="' + tid + '" data-rowid="' + row.id + '" data-field="' + field + '" ' +
       'data-ph="' + placeholder + '" ' +
-      'oninput="updHtml(this)" onblur="scheduleSave()">' +
+      'oninput="updHtml(this)" onblur="updHtmlBlur(this)">' +
       (html || '') + '</div>' + dot + '</td>';
   }
 
@@ -1322,11 +1322,21 @@ function updHtml(el) {
   var s = T[tid];
   var r = s.rows.find(function(r){ return r.id === rowId; }) ||
           s.deleted.find(function(r){ return r.id === rowId; });
+  if (r) r[field] = el.innerHTML;
+  syncRowHeight(tid, rowId);
+}
+
+function updHtmlBlur(el) {
+  var tid   = el.dataset.tid;
+  var rowId = parseInt(el.dataset.rowid, 10);
+  var field = el.dataset.field;
+  var s = T[tid];
+  var r = s.rows.find(function(r){ return r.id === rowId; }) ||
+          s.deleted.find(function(r){ return r.id === rowId; });
   if (r) {
     stampAudit(r, field, el.innerHTML);
-    r[field] = el.innerHTML;
+    scheduleSave();
   }
-  syncRowHeight(tid, rowId);
 }
 
 // ================================================================
