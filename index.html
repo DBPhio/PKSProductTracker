@@ -587,6 +587,10 @@ function applyRemote(payload) {
     T[tid].deleted = (remote.deleted || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
     T[tid].nextId  = remote.nextId  || T[tid].nextId;
     if (!T[tid].permSelected) T[tid].permSelected = new Set();
+    if (!T[tid].colTitles)    T[tid].colTitles = {};
+    if (remote.colTitles)     T[tid].colTitles = remote.colTitles;
+    if (remote.dataColOrder)  T[tid].dataColOrder = remote.dataColOrder;
+    if (remote.calcColOrder)  T[tid].calcColOrder = remote.calcColOrder;
     if (!T[tid].colWidths) T[tid].colWidths = (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : tid === 'biofire' ? DEFAULT_COL_W_BIOFIRE : DEFAULT_COL_W).slice();
     render(tid, changedIds);
   });
@@ -604,9 +608,12 @@ function pushToFirebase() {
   var payload = { updatedBy: MY_ID, updatedAt: Date.now(), tables: {} };
   IDS.forEach(function(tid) {
     payload.tables[tid] = {
-      rows:    T[tid].rows,
-      deleted: T[tid].deleted,
-      nextId:  T[tid].nextId
+      rows:          T[tid].rows,
+      deleted:       T[tid].deleted,
+      nextId:        T[tid].nextId,
+      colTitles:     T[tid].colTitles    || {},
+      dataColOrder:  T[tid].dataColOrder || null,
+      calcColOrder:  T[tid].calcColOrder || null
     };
   });
   fbDatabase.ref('qa-tracker/data').set(payload)
@@ -1044,8 +1051,13 @@ function rowHTML(tid, row, i, isDel) {
 
 // Calc columns only — rendered into the separate fixed calc panel
 function calcRowHTML(tid, row, isDel) {
-  var dIR = isDel ? (row._snapIR !== undefined ? row._snapIR : null) : dBetween(row.dateManufactured, row.dateReturned);
-  var dQA = isDel ? (row._snapQA !== undefined ? row._snapQA : null) : dBetween(row.dateQAReturned, row.initialReviewDate);
+  // IMM: PR Review Length = prInitialReview → dateQAReturned (PR Initial Review → Date Record Returned)
+  //      QA Review Length = initialReviewDate → reviewCompleteDate (QA Review Date → Review Complete Date)
+  // Prompt/BioFire: unchanged
+  var dIR = isDel ? (row._snapIR !== undefined ? row._snapIR : null)
+    : (tid === 'imm' ? dBetween(row.prInitialReview, row.dateQAReturned) : dBetween(row.dateManufactured, row.dateReturned));
+  var dQA = isDel ? (row._snapQA !== undefined ? row._snapQA : null)
+    : (tid === 'imm' ? dBetween(row.initialReviewDate, row.reviewCompleteDate) : dBetween(row.dateQAReturned, row.initialReviewDate));
   var dQC = (tid !== 'imm') ? (isDel ? (row._snapQC !== undefined ? row._snapQC : null) : dBetween(row.dateQCReturned, row.dateReviewQC)) : null;
   var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.reviewCompleteDate);
 
@@ -1122,9 +1134,21 @@ function calcRowHTML(tid, row, isDel) {
   }
   if (!dispCell) dispCell = '<td class="ca" style="color:var(--txt3);">—</td>';
 
-  return calcTextTd('erLirNumber', row.erLirNumber, 'ER Number') +
-    calcTextTd('lirNcrNumber', row.lirNcrNumber, 'LIR/NCR') +
-    sterCell + cCell(dIR) + cCell(dQA) + (tid !== 'imm' ? cCell(dQC) : '') + cCell(dRR) + dispCell + corrCell;
+  var calcCols = T[tid].calcColOrder || DEFAULT_CALC_COLS[tid];
+  return calcCols.map(function(colKey) {
+    switch(colKey) {
+      case 'erLirNumber':   return calcTextTd('erLirNumber', row.erLirNumber, 'ER Number');
+      case 'lirNcrNumber':  return calcTextTd('lirNcrNumber', row.lirNcrNumber, 'LIR/NCR');
+      case 'sterilityDate': return sterCell;
+      case 'dIR':           return cCell(dIR);
+      case 'dQA':           return cCell(dQA);
+      case 'dQC':           return tid !== 'imm' ? cCell(dQC) : '';
+      case 'dRR':           return cCell(dRR);
+      case 'dispCell':      return dispCell;
+      case 'corrCell':      return corrCell;
+      default: return '';
+    }
+  }).join('');
 }
 
 
@@ -1489,8 +1513,8 @@ function deleteChecked(tid) {
   setTimeout(function() {
     toDel.forEach(function(r) {
       // Freeze the calculated values at the moment of dispositioning
-      r._snapIR = dBetween(r.dateManufactured, r.dateReturned);
-      r._snapQA = dBetween(r.dateQAReturned, r.initialReviewDate);
+      r._snapIR = tid === 'imm' ? dBetween(r.prInitialReview, r.dateQAReturned) : dBetween(r.dateManufactured, r.dateReturned);
+      r._snapQA = tid === 'imm' ? dBetween(r.initialReviewDate, r.reviewCompleteDate) : dBetween(r.dateQAReturned, r.initialReviewDate);
       r._snapQC = dBetween(r.dateQCReturned, r.dateReviewQC);
       r._snapRR = dBetween(r.dateReturned, r.reviewCompleteDate);
       // Stamp the date it was dispositioned
