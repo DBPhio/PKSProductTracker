@@ -587,11 +587,12 @@ function applyRemote(payload) {
     T[tid].deleted = (remote.deleted || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
     T[tid].nextId  = remote.nextId  || T[tid].nextId;
     if (!T[tid].permSelected) T[tid].permSelected = new Set();
-    if (!T[tid].colTitles)    T[tid].colTitles = {};
-    if (remote.colTitles)     T[tid].colTitles = remote.colTitles;
-    if (remote.dataColOrder)  T[tid].dataColOrder = remote.dataColOrder;
-    if (remote.calcColOrder)  T[tid].calcColOrder = remote.calcColOrder;
-    if (!T[tid].colWidths) T[tid].colWidths = (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : tid === 'biofire' ? DEFAULT_COL_W_BIOFIRE : DEFAULT_COL_W).slice();
+    if (!T[tid].colTitles)   T[tid].colTitles = {};
+    if (remote.colTitles)    T[tid].colTitles = remote.colTitles;
+    if (remote.dataColOrder) T[tid].dataColOrder = remote.dataColOrder;
+    if (remote.calcColOrder) T[tid].calcColOrder = remote.calcColOrder;
+    if (remote.colWidths && remote.colWidths.length) T[tid].colWidths = remote.colWidths;
+    else if (!T[tid].colWidths) T[tid].colWidths = (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : tid === 'biofire' ? DEFAULT_COL_W_BIOFIRE : DEFAULT_COL_W).slice();
     render(tid, changedIds);
   });
   document.getElementById('sync-time').textContent = 'Updated ' + new Date().toLocaleTimeString();
@@ -613,7 +614,8 @@ function pushToFirebase() {
       nextId:        T[tid].nextId,
       colTitles:     T[tid].colTitles    || {},
       dataColOrder:  T[tid].dataColOrder || null,
-      calcColOrder:  T[tid].calcColOrder || null
+      calcColOrder:  T[tid].calcColOrder || null,
+      colWidths:     T[tid].colWidths    || null
     };
   });
   fbDatabase.ref('qa-tracker/data').set(payload)
