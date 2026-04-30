@@ -256,7 +256,7 @@
             <table id="imm-htable"><thead><tr>
               <th class="cc"><input type="checkbox" id="imm-sa" onchange="toggleAll('imm',this)"></th>
               <th class="cn">#</th>
-              <th>Lot Numbers</th><th>Date Issued</th><th>Date PR Ended</th>
+              <th>Lot Numbers</th><th>Date Issued</th><th>Date PR Ended</th><th>PR Initial Review</th>
               <th>Date PR Returned</th><th>Date QA Returned</th><th>QA Review Date</th><th>Corrections</th><th>Review Complete Date</th>
             </tr></thead></table>
           </div>
@@ -413,7 +413,7 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,105,105,75,75,82,82,75];  // 17 cols (IMM)
+const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,108,105,105,75,75,82,82,75]; // 18 cols (IMM)
 const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,98,75,75,75,82,82,75]; // 22 cols (Prompt)
 const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,75,75,75,82,82,75]; // 21 cols (BioFire)
 const CALC_COL_COUNT = { imm: 7, prompt: 9, biofire: 8 }; // how many cols live in the fixed calc panel
@@ -627,7 +627,7 @@ function setSyncStatus(state) {
 // ================================================================
 
 function mkRow(id) {
-  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', erLirNumber:'', lirNcrNumber:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, done:false, strikes:{}, _cellMeta:{} };
+  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', erLirNumber:'', lirNcrNumber:'', prInitialReview:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, done:false, strikes:{}, _cellMeta:{} };
 }
 
 function confirmClearAll() {
@@ -980,7 +980,7 @@ function rowHTML(tid, row, i, isDel) {
     if (field === 'dateManufactured') {
       if (value && row.dateIssued) {
         var mfgDays = dBetween(row.dateIssued, value);
-        mfgCounter = mfgDays !== null ? '<span class="mfg-counter stopped" style="display:flex;align-items:center;gap:3px;"><span style="color:var(--txt3);font-size:8.5pt;font-weight:400;">MR length:</span>' + mfgDays + 'd</span>' : '';
+        mfgCounter = mfgDays !== null ? '<span class="mfg-counter stopped" style="display:flex;align-items:center;gap:3px;"><span style="color:var(--txt3);font-size:8.5pt;font-weight:400;">PR length:</span>' + mfgDays + 'd</span>' : '';
       }
     }
     return '<td class="' + cls + '" onclick="handleCellStrike(event,\'' + tid + '\',' + row.id + ',\'' + field + '\')">' +
@@ -1015,6 +1015,7 @@ function rowHTML(tid, row, i, isDel) {
       isDel && row._dispositionedAt ? '<span class="disp-stamp">Dispositioned: ' + row._dispositionedAt + '</span>' : '') +
     dateCell('dateIssued',      row.dateIssued,         'MM/DD/YYYY') +
     dateCell('dateManufactured',row.dateManufactured,   'MM/DD/YYYY') +
+    (tid === 'imm' ? dateCell('prInitialReview', row.prInitialReview, 'MM/DD/YYYY') : '') +
     dateCell('dateReturned',    row.dateReturned,       'MM/DD/YYYY') +
     dateCell('dateQAReturned',  row.dateQAReturned,     'MM/DD/YYYY') +
     (tid !== 'imm' ? dateCell('dateQCReturned', row.dateQCReturned, 'MM/DD/YYYY') : '') +
@@ -1303,7 +1304,7 @@ function upd(tid, id, field, value) {
           s.deleted.find(function(r){ return r.id === id; });
   if (!r) return;
   // Normalise date fields to MM/DD/YYYY on save
-  var dateFields = ['dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','initialReviewDate','reviewCompleteDate','sterilityDate','correctionsDate'];
+  var dateFields = ['dateIssued','dateManufactured','prInitialReview','dateReturned','dateQAReturned','dateQCReturned','initialReviewDate','reviewCompleteDate','sterilityDate','correctionsDate'];
   if (dateFields.indexOf(field) !== -1 && value) {
     var norm = fmtDate(value);
     value = norm || value;
