@@ -274,7 +274,6 @@
                 <th class="ca">QA Final Review</th>
                 <th class="ca">Days Returned to Review</th>
                 <th class="ca">Expected Disposition Date</th>
-                <th class="ca">Days not Dispositioned</th>
                 <th class="ca">Corrections</th>
               </tr></thead></table>
             </div>
@@ -328,7 +327,6 @@
                   <th class="ca">QC Final Review</th>
                   <th class="ca">Days Returned to Review</th>
                   <th class="ca">Expected Disposition Date</th>
-                  <th class="ca">Days not Dispositioned</th>
                   <th class="ca">Corrections</th>
                 </tr></thead></table>
               </div>
@@ -380,7 +378,6 @@
                   <th class="ca">QC Final Review</th>
                   <th class="ca">Days Returned to Review</th>
                   <th class="ca">Expected Disposition Date</th>
-                  <th class="ca">Days not Dispositioned</th>
                   <th class="ca">Corrections</th>
                 </tr></thead></table>
               </div>
@@ -416,10 +413,10 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,108,105,105,75,75,108,82,75]; // 18 cols (IMM)
-const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,98,75,75,75,108,82,82,75]; // 23 cols (Prompt)
-const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,75,75,75,108,82,82,75]; // 22 cols (BioFire)
-const CALC_COL_COUNT = { imm: 8, prompt: 10, biofire: 9 }; // how many cols live in the fixed calc panel
+const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,108,108,105,105,75,75,108,75]; // 18 cols (IMM)
+const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,98,75,75,75,108,82,75];  // 22 cols (Prompt)
+const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,75,75,75,108,82,75];  // 21 cols (BioFire)
+const CALC_COL_COUNT = { imm: 7, prompt: 9, biofire: 8 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -1036,7 +1033,6 @@ function calcRowHTML(tid, row, isDel) {
   var dQA = isDel ? (row._snapQA !== undefined ? row._snapQA : null) : dBetween(row.dateQAReturned, row.initialReviewDate);
   var dQC = (tid !== 'imm') ? (isDel ? (row._snapQC !== undefined ? row._snapQC : null) : dBetween(row.dateQCReturned, row.dateReviewQC)) : null;
   var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.reviewCompleteDate);
-  var dND = isDel ? (row._snapND !== undefined ? row._snapND : null) : dSince(row.dateReturned);
 
   // ER/LIR and NCR — contenteditable text cells in the calc panel
   function calcTextTd(field, html, placeholder) {
@@ -1105,7 +1101,7 @@ function calcRowHTML(tid, row, isDel) {
       var counterTxt = daysLeft < 0 ? Math.abs(daysLeft) + 'd overdue' : daysLeft + 'd remaining';
       dispCell = '<td class="ca"><div style="text-align:center;">' +
         '<span style="font-family:var(--aptos);font-size:var(--fs);color:var(--green-txt);">' + expStr + '</span><br>' +
-        '<span class="sterility-counter ' + counterCls + '">' + counterTxt + '</span>' +
+        '<span style="font-size:10pt;" class="sterility-counter ' + counterCls + '">' + counterTxt + '</span>' +
         '</div></td>';
     }
   }
@@ -1113,7 +1109,7 @@ function calcRowHTML(tid, row, isDel) {
 
   return calcTextTd('erLirNumber', row.erLirNumber, 'ER Number') +
     calcTextTd('lirNcrNumber', row.lirNcrNumber, 'LIR/NCR') +
-    sterCell + cCell(dIR) + cCell(dQA) + (tid !== 'imm' ? cCell(dQC) : '') + cCell(dRR) + dispCell + cCell(dND) + corrCell;
+    sterCell + cCell(dIR) + cCell(dQA) + (tid !== 'imm' ? cCell(dQC) : '') + cCell(dRR) + dispCell + corrCell;
 }
 
 // ================================================================
@@ -1290,7 +1286,6 @@ function deleteChecked(tid) {
       r._snapQA = dBetween(r.dateQAReturned, r.initialReviewDate);
       r._snapQC = dBetween(r.dateQCReturned, r.dateReviewQC);
       r._snapRR = dBetween(r.dateReturned, r.reviewCompleteDate);
-      r._snapND = dSince(r.dateReturned);
       // Stamp the date it was dispositioned
       var now = new Date();
       var m = now.getMonth()+1, d = now.getDate(), y = now.getFullYear();
@@ -1309,7 +1304,7 @@ function restoreAll(tid) {
     ? s.deleted.filter(function(r){ return s.permSelected.has(r.id); })
     : s.deleted.slice();
   toRestore.forEach(function(r) {
-    delete r._snapIR; delete r._snapQA; delete r._snapQC; delete r._snapRR; delete r._snapND;
+    delete r._snapIR; delete r._snapQA; delete r._snapQC; delete r._snapRR;
     delete r._dispositionedAt;
     s.restored.add(r.id);
     s.rows.push(r);
