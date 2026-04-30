@@ -273,6 +273,7 @@
                 <th class="ca">PR Final Review</th>
                 <th class="ca">QA Final Review</th>
                 <th class="ca">Days Returned to Review</th>
+                <th class="ca">Expected Disposition Date</th>
                 <th class="ca">Days not Dispositioned</th>
                 <th class="ca">Corrections</th>
               </tr></thead></table>
@@ -326,6 +327,7 @@
                   <th class="ca">QA Final Review</th>
                   <th class="ca">QC Final Review</th>
                   <th class="ca">Days Returned to Review</th>
+                  <th class="ca">Expected Disposition Date</th>
                   <th class="ca">Days not Dispositioned</th>
                   <th class="ca">Corrections</th>
                 </tr></thead></table>
@@ -377,6 +379,7 @@
                   <th class="ca">QA Final Review</th>
                   <th class="ca">QC Final Review</th>
                   <th class="ca">Days Returned to Review</th>
+                  <th class="ca">Expected Disposition Date</th>
                   <th class="ca">Days not Dispositioned</th>
                   <th class="ca">Corrections</th>
                 </tr></thead></table>
@@ -413,10 +416,10 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,108,105,105,75,75,82,82,75]; // 18 cols (IMM)
-const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,98,75,75,75,82,82,75]; // 22 cols (Prompt)
-const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,75,75,75,82,82,75]; // 21 cols (BioFire)
-const CALC_COL_COUNT = { imm: 7, prompt: 9, biofire: 8 }; // how many cols live in the fixed calc panel
+const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,108,105,105,75,75,108,82,75]; // 18 cols (IMM)
+const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,98,75,75,75,108,82,82,75]; // 23 cols (Prompt)
+const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,75,75,75,108,82,82,75]; // 22 cols (BioFire)
+const CALC_COL_COUNT = { imm: 8, prompt: 10, biofire: 9 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -1085,9 +1088,32 @@ function calcRowHTML(tid, row, isDel) {
     ' onchange="toggleCorrections(\'' + tid + '\',' + row.id + ',this)" title="Mark corrections complete">' +
     '</div></td>';
 
+  // Expected Disposition Date: PR Ended + offset (IMM/BioFire: +6 days, Prompt: +18 days)
+  var dispOffset = tid === 'prompt' ? 18 : 6;
+  var dispCell = '';
+  if (row.dateManufactured) {
+    var prDate = parseLocalDate(row.dateManufactured);
+    if (prDate) {
+      var expDate = new Date(prDate.getTime() + dispOffset * 86400000);
+      var em = expDate.getMonth()+1, ed = expDate.getDate(), ey = expDate.getFullYear();
+      var expStr = (em<10?'0'+em:em) + '/' + (ed<10?'0'+ed:ed) + '/' + ey;
+      // Counter: days from today to expected disposition date
+      var today = new Date(); today.setHours(0,0,0,0);
+      expDate.setHours(0,0,0,0);
+      var daysLeft = Math.round((expDate - today) / 86400000);
+      var counterCls = daysLeft < 0 ? 'expired' : (daysLeft <= 3 ? 'warn' : 'ok');
+      var counterTxt = daysLeft < 0 ? Math.abs(daysLeft) + 'd overdue' : daysLeft + 'd remaining';
+      dispCell = '<td class="ca"><div style="text-align:center;">' +
+        '<span style="font-family:var(--aptos);font-size:var(--fs);color:var(--green-txt);">' + expStr + '</span><br>' +
+        '<span class="sterility-counter ' + counterCls + '">' + counterTxt + '</span>' +
+        '</div></td>';
+    }
+  }
+  if (!dispCell) dispCell = '<td class="ca" style="color:var(--txt3);">—</td>';
+
   return calcTextTd('erLirNumber', row.erLirNumber, 'ER Number') +
     calcTextTd('lirNcrNumber', row.lirNcrNumber, 'LIR/NCR') +
-    sterCell + cCell(dIR) + cCell(dQA) + (tid !== 'imm' ? cCell(dQC) : '') + cCell(dRR) + cCell(dND) + corrCell;
+    sterCell + cCell(dIR) + cCell(dQA) + (tid !== 'imm' ? cCell(dQC) : '') + cCell(dRR) + dispCell + cCell(dND) + corrCell;
 }
 
 // ================================================================
