@@ -173,6 +173,10 @@
   .calc-body-wrap{flex:1;overflow:auto;scrollbar-width:none;}
   .calc-body-wrap::-webkit-scrollbar{display:none;}
   .calc-body-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;}
+  th.col-drag-over{border-left:2px solid var(--green)!important;}
+  th.col-dragging{opacity:0.4;}
+  th.col-editable-input{padding:0!important;}
+  th input.col-title-input{width:100%;height:100%;background:var(--bg);border:none;outline:2px solid var(--green);color:var(--txt2);font-size:10pt;font-family:var(--aptos);font-weight:500;text-align:center;padding:4px 6px;box-sizing:border-box;}
   .nosel,.nosel *{user-select:none!important;}
 </style>
 </head>
@@ -428,7 +432,10 @@ IDS.forEach(function(tid) {
     restored:  new Set(),
     permSelected: new Set(),
     colWidths: (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : tid === 'biofire' ? DEFAULT_COL_W_BIOFIRE : DEFAULT_COL_W).slice(),
-    rowHeights: {}
+    rowHeights: {},
+    colTitles: {},
+    dataColOrder: null,
+    calcColOrder: null
   };
 });
 
@@ -1008,22 +1015,30 @@ function rowHTML(tid, row, i, isDel) {
       (html || '') + '</div>' + (suffix || '') + dot + '</td>';
   }
 
+  var dataCols = (T[tid].dataColOrder || DEFAULT_DATA_COLS[tid]);
+  var cells = dataCols.map(function(colKey) {
+    switch(colKey) {
+      case 'lotNumbers':        return textTd('lotNumbers', row.lotNumbers, 'Lot numbers',
+                                  isDel && row._dispositionedAt ? '<span class="disp-stamp">Dispositioned: ' + row._dispositionedAt + '</span>' : '');
+      case 'dateIssued':        return dateCell('dateIssued', row.dateIssued, 'MM/DD/YYYY');
+      case 'dateManufactured':  return dateCell('dateManufactured', row.dateManufactured, 'MM/DD/YYYY');
+      case 'prInitialReview':   return tid === 'imm' ? dateCell('prInitialReview', row.prInitialReview, 'MM/DD/YYYY') : '';
+      case 'dateReturned':      return dateCell('dateReturned', row.dateReturned, 'MM/DD/YYYY');
+      case 'dateQAReturned':    return dateCell('dateQAReturned', row.dateQAReturned, 'MM/DD/YYYY');
+      case 'dateQCReturned':    return tid !== 'imm' ? dateCell('dateQCReturned', row.dateQCReturned, 'MM/DD/YYYY') : '';
+      case 'dateReviewMR':      return tid !== 'imm' ? dateCell('dateReviewMR', row.dateReviewMR, 'MM/DD/YYYY') : '';
+      case 'dateReviewQC':      return tid !== 'imm' ? dateCell('dateReviewQC', row.dateReviewQC, 'MM/DD/YYYY') : '';
+      case 'initialReviewDate': return dateCell('initialReviewDate', row.initialReviewDate, 'MM/DD/YYYY');
+      case 'correctionsDate':   return dateCell('correctionsDate', row.correctionsDate, 'MM/DD/YYYY');
+      case 'reviewCompleteDate':return dateCell('reviewCompleteDate', row.reviewCompleteDate, 'MM/DD/YYYY');
+      default: return '';
+    }
+  }).join('');
+
   return (
     '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'toggleRow(\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
     '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
-    textTd('lotNumbers', row.lotNumbers, 'Lot numbers',
-      isDel && row._dispositionedAt ? '<span class="disp-stamp">Dispositioned: ' + row._dispositionedAt + '</span>' : '') +
-    dateCell('dateIssued',      row.dateIssued,         'MM/DD/YYYY') +
-    dateCell('dateManufactured',row.dateManufactured,   'MM/DD/YYYY') +
-    (tid === 'imm' ? dateCell('prInitialReview', row.prInitialReview, 'MM/DD/YYYY') : '') +
-    dateCell('dateReturned',    row.dateReturned,       'MM/DD/YYYY') +
-    dateCell('dateQAReturned',  row.dateQAReturned,     'MM/DD/YYYY') +
-    (tid !== 'imm' ? dateCell('dateQCReturned', row.dateQCReturned, 'MM/DD/YYYY') : '') +
-    (tid !== 'imm' ? dateCell('dateReviewMR', row.dateReviewMR, 'MM/DD/YYYY') : '') +
-    (tid !== 'imm' ? dateCell('dateReviewQC', row.dateReviewQC, 'MM/DD/YYYY') : '') +
-    dateCell('initialReviewDate', row.initialReviewDate,'MM/DD/YYYY') +
-    dateCell('correctionsDate',   row.correctionsDate,   'MM/DD/YYYY') +
-    dateCell('reviewCompleteDate',row.reviewCompleteDate,'MM/DD/YYYY')
+    cells
   );
 }
 
@@ -1110,6 +1125,197 @@ function calcRowHTML(tid, row, isDel) {
   return calcTextTd('erLirNumber', row.erLirNumber, 'ER Number') +
     calcTextTd('lirNcrNumber', row.lirNcrNumber, 'LIR/NCR') +
     sterCell + cCell(dIR) + cCell(dQA) + (tid !== 'imm' ? cCell(dQC) : '') + cCell(dRR) + dispCell + corrCell;
+}
+
+
+// ================================================================
+//  COLUMN DEFINITIONS & ORDERING
+// ================================================================
+
+var DEFAULT_DATA_COLS = {
+  imm:    ['lotNumbers','dateIssued','dateManufactured','prInitialReview','dateReturned','dateQAReturned','initialReviewDate','correctionsDate','reviewCompleteDate'],
+  prompt: ['lotNumbers','dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC','initialReviewDate','correctionsDate','reviewCompleteDate'],
+  biofire:['lotNumbers','dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC','initialReviewDate','correctionsDate','reviewCompleteDate']
+};
+var DEFAULT_CALC_COLS = {
+  imm:    ['erLirNumber','lirNcrNumber','dIR','dQA','dRR','dispCell','corrCell'],
+  prompt: ['erLirNumber','lirNcrNumber','sterilityDate','dIR','dQA','dQC','dRR','dispCell','corrCell'],
+  biofire:['erLirNumber','lirNcrNumber','dIR','dQA','dQC','dRR','dispCell','corrCell']
+};
+var DEFAULT_TITLES = {
+  imm:{
+    lotNumbers:'Lot Numbers',dateIssued:'Date Issued',dateManufactured:'Date PR Ended',
+    prInitialReview:'PR Initial Review',dateReturned:'QA Initial Review',
+    dateQAReturned:'Date Record Returned',initialReviewDate:'QA Review Date',
+    correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
+    erLirNumber:'ER Number',lirNcrNumber:'LIR/NCR Number',
+    dIR:'PR Review Length',dQA:'QA Review Length',dRR:'Days Returned to Review',
+    dispCell:'Expected Disposition Date',corrCell:'Corrections'
+  },
+  prompt:{
+    lotNumbers:'Lot Numbers',dateIssued:'Date Issued',dateManufactured:'Date PR Ended',
+    dateReturned:'Date PR Returned',dateQAReturned:'Date QA Returned',
+    dateQCReturned:'Date QC Returned',dateReviewMR:'PR Review Date',
+    dateReviewQC:'QC Review Date',initialReviewDate:'QA Review Date',
+    correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
+    erLirNumber:'ER Number',lirNcrNumber:'LIR/NCR Number',sterilityDate:'Sterility Date',
+    dIR:'PR Review Length',dQA:'QA Review Length',dQC:'QC Review Length',
+    dRR:'Days Returned to Review',dispCell:'Expected Disposition Date',corrCell:'Corrections'
+  },
+  biofire:{
+    lotNumbers:'Lot Numbers',dateIssued:'Date Issued',dateManufactured:'Date PR Ended',
+    dateReturned:'Date PR Returned',dateQAReturned:'Date QA Returned',
+    dateQCReturned:'Date QC Returned',dateReviewMR:'PR Review Date',
+    dateReviewQC:'QC Review Date',initialReviewDate:'QA Review Date',
+    correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
+    erLirNumber:'ER Number',lirNcrNumber:'LIR/NCR Number',
+    dIR:'PR Review Length',dQA:'QA Review Length',dQC:'QC Review Length',
+    dRR:'Days Returned to Review',dispCell:'Expected Disposition Date',corrCell:'Corrections'
+  }
+};
+
+function getColTitle(tid, colKey) {
+  return (T[tid] && T[tid].colTitles && T[tid].colTitles[colKey]) ||
+    (DEFAULT_TITLES[tid] && DEFAULT_TITLES[tid][colKey]) || colKey;
+}
+
+// ── Header rendering ──────────────────────────────────────────
+function renderHeaders(tid) {
+  var s = T[tid];
+  var dataCols = s.dataColOrder || DEFAULT_DATA_COLS[tid];
+  var calcCols = s.calcColOrder || DEFAULT_CALC_COLS[tid];
+
+  function makeDataTh(colKey, idx) {
+    var th = document.createElement('th');
+    th.dataset.colKey = colKey;
+    th.dataset.colIdx = idx;
+    th.dataset.section = 'data';
+    th.textContent = getColTitle(tid, colKey);
+    th.setAttribute('draggable', 'true');
+    return th;
+  }
+  function makeCalcTh(colKey, idx) {
+    var th = document.createElement('th');
+    th.className = 'ca';
+    th.dataset.colKey = colKey;
+    th.dataset.colIdx = idx;
+    th.dataset.section = 'calc';
+    th.textContent = getColTitle(tid, colKey);
+    th.setAttribute('draggable', 'true');
+    return th;
+  }
+
+  // Data thead — preserve cc and cn, replace rest
+  var hTable = document.getElementById(tid + '-htable');
+  if (hTable) {
+    var tr = hTable.querySelector('thead tr');
+    var fixed = Array.from(tr.children).slice(0, 2); // cc + cn
+    tr.innerHTML = '';
+    fixed.forEach(function(el){ tr.appendChild(el); });
+    dataCols.forEach(function(colKey, idx) {
+      tr.appendChild(makeDataTh(colKey, idx));
+    });
+  }
+
+  // Calc thead — replace all
+  var calcHTable = document.getElementById(tid + '-calc-htable');
+  if (calcHTable) {
+    var calcTr = calcHTable.querySelector('thead tr');
+    calcTr.innerHTML = '';
+    calcCols.forEach(function(colKey, idx) {
+      calcTr.appendChild(makeCalcTh(colKey, idx));
+    });
+  }
+
+  injectColHeaderHandlers(tid);
+}
+
+// ── Column drag-to-reorder ────────────────────────────────────
+var _colDrag = null;
+function injectColHeaderHandlers(tid) {
+  ['htable','calc-htable'].forEach(function(sfx) {
+    var tbl = document.getElementById(tid + '-' + sfx);
+    if (!tbl) return;
+    var ths = Array.from(tbl.querySelectorAll('th[data-col-key]'));
+    ths.forEach(function(th) {
+      th.ondragstart = function(e) {
+        _colDrag = { tid:tid, section:th.dataset.section, colKey:th.dataset.colKey, colIdx:parseInt(th.dataset.colIdx) };
+        th.classList.add('col-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', th.dataset.colKey);
+      };
+      th.ondragend = function() {
+        th.classList.remove('col-dragging');
+        document.querySelectorAll('.col-drag-over').forEach(function(el){ el.classList.remove('col-drag-over'); });
+        _colDrag = null;
+      };
+      th.ondragover = function(e) {
+        if (!_colDrag || _colDrag.tid !== tid || _colDrag.section !== th.dataset.section) return;
+        e.preventDefault();
+        document.querySelectorAll('.col-drag-over').forEach(function(el){ el.classList.remove('col-drag-over'); });
+        th.classList.add('col-drag-over');
+      };
+      th.ondrop = function(e) {
+        e.preventDefault();
+        th.classList.remove('col-drag-over');
+        if (!_colDrag || _colDrag.tid !== tid || _colDrag.section !== th.dataset.section) return;
+        var fromIdx = _colDrag.colIdx;
+        var toIdx   = parseInt(th.dataset.colIdx);
+        if (fromIdx === toIdx) return;
+        var s = T[tid];
+        var isCalc = _colDrag.section === 'calc';
+        var orderArr  = isCalc ? (s.calcColOrder || DEFAULT_CALC_COLS[tid].slice()) : (s.dataColOrder || DEFAULT_DATA_COLS[tid].slice());
+        // Move element
+        var moved = orderArr.splice(fromIdx, 1)[0];
+        orderArr.splice(toIdx, 0, moved);
+        if (isCalc) s.calcColOrder = orderArr;
+        else        s.dataColOrder = orderArr;
+        // Move colWidths: offset calc cols by data col count
+        var len = s.colWidths.length;
+        var calcCount = CALC_COL_COUNT[tid];
+        var dataCount = len - calcCount;
+        var wBase = isCalc ? dataCount : 0;
+        var wArr  = s.colWidths.slice();
+        var colFrom = wBase + fromIdx + (isCalc ? 0 : 0);
+        var colTo   = wBase + toIdx;
+        // Adjust for cc+cn offset in data section
+        if (!isCalc) { colFrom += 2; colTo += 2; }
+        var wMoved = wArr.splice(colFrom, 1)[0];
+        wArr.splice(colTo, 0, wMoved);
+        s.colWidths = wArr;
+        render(tid);
+        scheduleSave();
+      };
+      // Double-click to edit title
+      th.ondblclick = function(e) {
+        e.stopPropagation();
+        var colKey = th.dataset.colKey;
+        var input = document.createElement('input');
+        input.className = 'col-title-input';
+        input.value = getColTitle(tid, colKey);
+        th.classList.add('col-editable-input');
+        th.textContent = '';
+        th.appendChild(input);
+        input.focus();
+        input.select();
+        function saveTitle() {
+          var val = input.value.trim() || getColTitle(tid, colKey);
+          if (!T[tid].colTitles) T[tid].colTitles = {};
+          T[tid].colTitles[colKey] = val;
+          th.classList.remove('col-editable-input');
+          th.textContent = val;
+          th.setAttribute('draggable','true');
+          injectColHeaderHandlers(tid);
+          scheduleSave();
+        }
+        input.addEventListener('blur', saveTitle);
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') { input.blur(); }
+          if (e.key === 'Escape') { input.value = getColTitle(tid, colKey); input.blur(); }
+        });
+      };
+    });
+  });
 }
 
 // ================================================================
@@ -1213,6 +1419,7 @@ function render(tid, remoteIds) {
     sa.indeterminate = s.rows.some(function(r){ return r.done; }) && !sa.checked;
   }
 
+  renderHeaders(tid);
   applyColWidths(tid);
   requestAnimationFrame(function() {
     requestAnimationFrame(function() {
