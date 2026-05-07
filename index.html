@@ -522,12 +522,19 @@ function initApp() {
   initPanelResizers();
   initFirebaseListeners();
 
-  // Watch for any DOM or size changes and keep rows in sync
+  // Watch for DOM changes and keep rows in sync — debounced so typing doesn't shake the layout
   IDS.forEach(function(tid) {
     var mainTbody = document.getElementById(tid + '-tbody');
     var calcTbody = document.getElementById(tid + '-calc-tbody');
     if (mainTbody && calcTbody && window.MutationObserver) {
-      var obs = new MutationObserver(function() { syncCalcRowHeights(tid); });
+      var debounceTimer = null;
+      var obs = new MutationObserver(function(mutations) {
+        // Skip if the mutation is just character data (typing) — syncRowHeight handles that via onblur
+        var isTyping = mutations.every(function(m){ return m.type === 'characterData' || (m.type === 'childList' && m.target.closest && m.target.closest('.ci')); });
+        if (isTyping) return;
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function(){ syncCalcRowHeights(tid); }, 150);
+      });
       var cfg = { childList: true, subtree: true, characterData: true };
       obs.observe(mainTbody, cfg);
       obs.observe(calcTbody, cfg);
@@ -952,7 +959,7 @@ function syncCalcRowHeights(tid) {
         var mh = mainRows[j].getBoundingClientRect().height;
         var ch = calcRows[j].getBoundingClientRect().height;
         var h  = Math.ceil(Math.max(mh, ch));
-        if (h > 0) {
+        if (h > 0 && Math.abs(mh - ch) > 1) {
           mainRows[j].style.height = h + 'px';
           calcRows[j].style.height = h + 'px';
         }
