@@ -1022,23 +1022,8 @@ function hookDateInputs(tid) {
 // ── Patch scheduleSave to show save indicator ──────────────────
 var _origScheduleSave = null;
 
-function toggleStrikeMode() {
-  strikeModeOn = !strikeModeOn;
-  var btn = document.getElementById('strike-btn');
-  btn.classList.toggle('active', strikeModeOn);
-  btn.title = strikeModeOn
-    ? 'Strike mode ON — highlight text in a cell to strike it, or click a date cell. Click button again to exit.'
-    : 'Strike through — click to enable, then highlight text or click a date cell';
-  document.getElementById('outer').classList.toggle('strike-mode', strikeModeOn);
-  if (!strikeModeOn) {
-    // Clear any lingering selection
-    if (window.getSelection) window.getSelection().removeAllRanges();
-  }
-}
-
 // Applied via mouseup when text is selected inside a contenteditable cell
 function applyTextStrike() {
-  if (!strikeModeOn) return;
   var sel = window.getSelection();
   if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
 
@@ -1084,9 +1069,9 @@ function applyTextStrike() {
 
 // Date/calc cells: whole-cell strike on click
 function handleCellStrike(e, tid, rowId, field) {
-  if (!strikeModeOn) return;
   e.preventDefault();
   e.stopPropagation();
+  if (!window._dateCellStrikeMode) return; // disabled until re-enabled
   var s = T[tid];
   var r = s.rows.find(function(r){ return r.id === rowId; }) ||
           s.deleted.find(function(r){ return r.id === rowId; });
@@ -1981,7 +1966,6 @@ var rowDrag = null;
 var ghost   = null;
 
 function startRowDrag(e, tid, rowId) {
-  if (strikeModeOn) return;
   e.preventDefault();
   e.stopPropagation();
   document.body.classList.add('nosel');
