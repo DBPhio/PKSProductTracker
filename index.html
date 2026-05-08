@@ -45,9 +45,6 @@
   .sync-dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0;transition:background .3s;}
   .sync-dot.live{background:var(--green);box-shadow:0 0 4px var(--green);}
   .sync-dot.saving{background:#f0c040;}
-  .strike-btn{font-size:11.5pt;padding:2px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--txt2);cursor:pointer;font-family:var(--aptos);white-space:nowrap;text-decoration:line-through;letter-spacing:0.02em;transition:background .15s,border-color .15s,color .15s;}
-  .strike-btn:hover{background:#3a3a3a;color:var(--txt);}
-  .strike-btn.active{background:#3d2a0d;border-color:#c8922a;color:#f0c040;}
   .strike-mode td.strikeable{cursor:crosshair!important;}
   td.cell-struck{text-decoration:line-through;color:#c4a8f0!important;}
   td.cell-struck input,td.cell-struck textarea{text-decoration:line-through;color:#c4a8f0!important;}
@@ -240,7 +237,6 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
       <button class="view-toggle-btn" id="compact-btn" onclick="toggleCompact()" title="Toggle compact/comfortable row height">⇕ Compact</button>
-      <button class="strike-btn" id="strike-btn" title="Select text in any cell to strike it through — or press Ctrl+S">S̶ Strike</button>
       <button class="btn btn-d" onclick="confirmClearAll()" title="Clear all data from all panels">✕ Clear All</button>
       <span style="color:var(--green-txt);font-size:11.5pt" id="sync-users"></span>
       <span style="color:var(--txt3);font-size:11.5pt" id="sync-time"></span>
@@ -867,11 +863,6 @@ document.addEventListener('selectionchange', function() {
   var sel = window.getSelection();
   if (!sel || sel.isCollapsed) hideStrikeToolbar();
 });
-
-function toggleStrikeMode() {
-  // Legacy button — now just a no-op hint; toolbar replaces it
-  // Keep the button visible but inform user
-}
 
 // ================================================================
 //  FEATURE: COMPACT / COMFORTABLE TOGGLE (#13)
