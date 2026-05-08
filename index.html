@@ -974,7 +974,33 @@ function syncCalcRowHeights(tid) {
 
 // Sync a single row — called on every keystroke / date change
 function syncRowHeight(tid, rowId) {
-  syncCalcRowHeights(tid);
+  // Only adjust the specific row being edited — never reset all heights (causes scroll jump)
+  var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
+               document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]');
+  var calcTr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + rowId + '"]');
+  if (!mainTr) return;
+
+  // Temporarily release height lock to measure natural content height
+  var prevMain = mainTr.style.height;
+  var prevCalc = calcTr ? calcTr.style.height : '';
+  mainTr.style.height = '';
+  if (calcTr) calcTr.style.height = '';
+
+  requestAnimationFrame(function() {
+    var mh = mainTr.getBoundingClientRect().height;
+    var ch = calcTr ? calcTr.getBoundingClientRect().height : 0;
+    var h  = Math.ceil(Math.max(mh, ch));
+    var prev = Math.ceil(parseFloat(prevMain) || 0);
+    // Only apply if height actually changed to avoid unnecessary reflows
+    if (h > 0 && h !== prev) {
+      mainTr.style.height = h + 'px';
+      if (calcTr) calcTr.style.height = h + 'px';
+    } else {
+      // Restore previous heights if no change needed
+      mainTr.style.height = prevMain;
+      if (calcTr) calcTr.style.height = prevCalc;
+    }
+  });
 }
 
 // ================================================================
@@ -1586,7 +1612,13 @@ function updHtml(el) {
   var r = s.rows.find(function(r){ return r.id === rowId; }) ||
           s.deleted.find(function(r){ return r.id === rowId; });
   if (r) r[field] = el.innerHTML;
-  syncRowHeight(tid, rowId);
+  // Only expand row height if content has grown — no full reflow
+  var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]');
+  if (mainTr) {
+    var prev = parseFloat(mainTr.style.height) || 0;
+    var natural = el.scrollHeight + 10;
+    if (natural > prev) syncRowHeight(tid, rowId);
+  }
 }
 
 function updHtmlBlur(el) {
