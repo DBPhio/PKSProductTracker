@@ -97,7 +97,27 @@
   td.ca.hv{color:var(--green-txt);font-weight:500;}
   tr.done td{color:var(--done-txt);text-decoration:line-through;background:var(--done-bg);}
   tr.done td.cc,tr.done td.ca{text-decoration:none;}
-  tr:hover td{background:#323232;}
+  /* ── Panel accent row highlights ── */
+  #imm-tbody    tr:hover td{background:#2e3530!important;}
+  #prompt-tbody tr:hover td{background:#2a2e38!important;}
+  #biofire-tbody tr:hover td{background:#38302a!important;}
+  #imm-calc-tbody    tr:hover td{background:#263530!important;}
+  #prompt-calc-tbody tr:hover td{background:#222c38!important;}
+  #biofire-calc-tbody tr:hover td{background:#322a24!important;}
+
+  /* ── Compact mode ── */
+  body.compact td{padding:1px 4px!important;}
+  body.compact .ci{min-height:1em;}
+  body.compact .date-wrap{gap:1px;}
+  .view-toggle-btn{font-size:10pt;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--txt3);cursor:pointer;font-family:var(--aptos);transition:all .15s;}
+  .view-toggle-btn:hover{border-color:var(--green);color:var(--green-txt);}
+  .view-toggle-btn.active{border-color:var(--green);color:var(--green-txt);background:var(--green-bg);}
+
+  /* ── Save indicator ── */
+  .save-indicator{font-size:9.5pt;font-family:var(--aptos);padding:2px 8px;border-radius:4px;transition:opacity .4s;}
+  .save-indicator.saving{color:#f0c040;opacity:1;}
+  .save-indicator.saved{color:var(--green-txt);opacity:1;}
+  .save-indicator.hidden{opacity:0;}
   tr:hover td.cn{background:#2a2a2a;}
   tr:hover td.ca{background:#1a3528;}
   tr.done:hover td{background:#282828;}
@@ -216,8 +236,10 @@
     <div style="display:flex;align-items:center;gap:6px;">
       <div class="sync-dot" id="sync-dot"></div>
       <span id="sync-status">Connecting...</span>
+      <span class="save-indicator hidden" id="save-indicator"></span>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
+      <button class="view-toggle-btn" id="compact-btn" onclick="toggleCompact()" title="Toggle compact/comfortable row height">⇕ Compact</button>
       <button class="strike-btn" id="strike-btn" title="Select text in any cell to strike it through — or press Ctrl+S">S̶ Strike</button>
       <button class="btn btn-d" onclick="confirmClearAll()" title="Clear all data from all panels">✕ Clear All</button>
       <span style="color:var(--green-txt);font-size:11.5pt" id="sync-users"></span>
@@ -611,6 +633,7 @@ function applyRemote(payload) {
 }
 
 function scheduleSave() {
+  showSaveIndicator('saving');
   clearTimeout(saveTimer);
   saveTimer = setTimeout(pushToFirebase, 800);
 }
@@ -633,6 +656,7 @@ function pushToFirebase() {
   fbDatabase.ref('qa-tracker/data').set(payload)
     .then(function() {
       setSyncStatus('live');
+      showSaveIndicator('saved');
       document.getElementById('sync-time').textContent = 'Saved ' + new Date().toLocaleTimeString();
     })
     .catch(function(e) {
@@ -849,8 +873,163 @@ function toggleStrikeMode() {
   // Keep the button visible but inform user
 }
 
-// ── Strike mode ──────────────────────────────────────────────
-var strikeModeOn = false;
+// ================================================================
+//  FEATURE: COMPACT / COMFORTABLE TOGGLE (#13)
+// ================================================================
+var _isCompact = false;
+function toggleCompact() {
+  _isCompact = !_isCompact;
+  document.body.classList.toggle('compact', _isCompact);
+  var btn = document.getElementById('compact-btn');
+  btn.classList.toggle('active', _isCompact);
+  btn.textContent = _isCompact ? '⇕ Comfortable' : '⇕ Compact';
+  IDS.forEach(function(tid){ syncCalcRowHeights(tid); });
+}
+
+// ================================================================
+//  FEATURE: SAVE INDICATOR (#9)
+// ================================================================
+var _saveHideTimer = null;
+function showSaveIndicator(state) {
+  var el = document.getElementById('save-indicator');
+  if (!el) return;
+  clearTimeout(_saveHideTimer);
+  el.className = 'save-indicator ' + state;
+  el.textContent = state === 'saving' ? '● Saving…' : '✓ Saved';
+  if (state === 'saved') {
+    _saveHideTimer = setTimeout(function() {
+      el.className = 'save-indicator hidden';
+    }, 2500);
+  }
+}
+
+// ================================================================
+//  FEATURE: UNDO (#4)
+// ================================================================
+var _undoStack = [];
+var _MAX_UNDO  = 20;
+
+function pushUndoState() {
+  var snapshot = {};
+  IDS.forEach(function(tid) {
+    snapshot[tid] = {
+      rows:    JSON.parse(JSON.stringify(T[tid].rows)),
+      deleted: JSON.parse(JSON.stringify(T[tid].deleted)),
+      nextId:  T[tid].nextId
+    };
+  });
+  _undoStack.push(snapshot);
+  if (_undoStack.length > _MAX_UNDO) _undoStack.shift();
+}
+
+function undoLast() {
+  if (_undoStack.length === 0) return;
+  var snapshot = _undoStack.pop();
+  IDS.forEach(function(tid) {
+    T[tid].rows    = snapshot[tid].rows;
+    T[tid].deleted = snapshot[tid].deleted;
+    T[tid].nextId  = snapshot[tid].nextId;
+    render(tid);
+  });
+  scheduleSave();
+}
+
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    undoLast();
+  }
+});
+
+// ================================================================
+//  FEATURE: SHIFT+CLICK BULK SELECT (#5)
+// ================================================================
+var _lastCheckedRow = {}; // tid → rowId
+
+function toggleRow(tid, id, cb) {
+  var r = T[tid].rows.find(function(r){ return r.id === id; });
+  if (r) { r.done = cb.checked; render(tid); scheduleSave(); }
+  _lastCheckedRow[tid] = id;
+}
+
+function handleRowCheck(e, tid, id, cb) {
+  var s = T[tid];
+  if (e.shiftKey && _lastCheckedRow[tid] !== undefined) {
+    var last = _lastCheckedRow[tid];
+    var ids  = s.rows.map(function(r){ return r.id; });
+    var fromIdx = ids.indexOf(last);
+    var toIdx   = ids.indexOf(id);
+    if (fromIdx !== -1 && toIdx !== -1) {
+      var lo = Math.min(fromIdx, toIdx), hi = Math.max(fromIdx, toIdx);
+      for (var i = lo; i <= hi; i++) s.rows[i].done = cb.checked;
+      _lastCheckedRow[tid] = id;
+      render(tid);
+      scheduleSave();
+      return;
+    }
+  }
+  toggleRow(tid, id, cb);
+}
+
+// ================================================================
+//  FEATURE: TAB NAVIGATION (#8)
+// ================================================================
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Tab') return;
+  var active = document.activeElement;
+  if (!active) return;
+  var ce = active.closest('[contenteditable]');
+  var di = active.classList && active.classList.contains('di') ? active : null;
+  var cell = ce || di;
+  if (!cell) return;
+
+  e.preventDefault();
+  var row = active.closest('tr');
+  if (!row) return;
+  var tbody = row.closest('tbody');
+  if (!tbody) return;
+
+  var allInputs = Array.from(tbody.querySelectorAll('[contenteditable], input.di:not(.date-hidden)'));
+  var idx = allInputs.indexOf(active);
+  if (idx === -1) return;
+  var next = e.shiftKey ? allInputs[idx - 1] : allInputs[idx + 1];
+  if (next) { next.focus(); if (next.select) next.select(); }
+});
+
+// ================================================================
+//  FEATURE: SMART DATE FORMATTING (#3)
+// ================================================================
+function smartDateFormat(el) {
+  var val = el.value.replace(/\D/g,'');
+  if (val.length === 8) {
+    // Could be MMDDYYYY or YYYYMMDD
+    var mmdd = val.slice(0,2) + '/' + val.slice(2,4) + '/' + val.slice(4);
+    var yyyymmdd = val.slice(4,6) + '/' + val.slice(6,8) + '/' + val.slice(0,4);
+    var attempt = mmdd;
+    if (parseInt(val.slice(0,4)) > 1900 && parseInt(val.slice(0,4)) < 2100) attempt = yyyymmdd;
+    if (parseLocalDate(attempt)) { el.value = attempt; return; }
+  }
+  // Auto-insert slashes as user types: 2 chars → slash, 4 chars → slash
+  var raw = val;
+  if (raw.length > 2) raw = raw.slice(0,2) + '/' + raw.slice(2);
+  if (raw.length > 5) raw = raw.slice(0,5) + '/' + raw.slice(5,9);
+  if (raw !== el.value && val.length <= 8) el.value = raw;
+}
+
+// ── Hook smart formatting into date inputs at render time ──
+var _origApplyColWidths = null; // placeholder - injected at init
+function hookDateInputs(tid) {
+  var wrap = document.getElementById(tid + '-tbody-wrap');
+  if (!wrap) return;
+  wrap.querySelectorAll('input.di:not(.date-hidden)').forEach(function(inp) {
+    if (inp._smartHooked) return;
+    inp._smartHooked = true;
+    inp.addEventListener('input', function(){ smartDateFormat(this); });
+  });
+}
+
+// ── Patch scheduleSave to show save indicator ──────────────────
+var _origScheduleSave = null;
 
 function toggleStrikeMode() {
   strikeModeOn = !strikeModeOn;
@@ -1176,7 +1355,7 @@ function rowHTML(tid, row, i, isDel) {
   }).join('');
 
   return (
-    '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'toggleRow(\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
+    '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'handleRowCheck(event,\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
     '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
     cells
   );
@@ -1581,6 +1760,7 @@ function render(tid, remoteIds) {
   requestAnimationFrame(function() {
     requestAnimationFrame(function() {
       syncCalcRowHeights(tid);
+      hookDateInputs(tid);
     });
   });
 }
@@ -1639,6 +1819,8 @@ function toggleAll(tid, cb) {
 function deleteChecked(tid) {
   var s = T[tid];
   var toDel = s.rows.filter(function(r){ return r.done; });
+  if (!toDel.length) return;
+  pushUndoState();
   toDel.forEach(function(row) {
     var tr = document.querySelector('#' + tid + '-tbody tr[data-id="' + row.id + '"]');
     if (tr) tr.classList.add('flash');
