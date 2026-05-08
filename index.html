@@ -178,6 +178,10 @@
   th.col-dragging{opacity:0.4;}
   th.col-editable-input{padding:0!important;}
   th input.col-title-input{width:100%;height:100%;background:var(--bg);border:none;outline:2px solid var(--green);color:var(--txt2);font-size:10pt;font-family:var(--aptos);font-weight:500;text-align:center;padding:4px 6px;box-sizing:border-box;}
+  .strike-toolbar{position:fixed;z-index:9998;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px 5px;display:flex;gap:4px;align-items:center;box-shadow:0 4px 14px rgba(0,0,0,0.5);pointer-events:auto;}
+  .strike-toolbar-btn{background:transparent;border:1px solid transparent;border-radius:4px;color:var(--txt2);font-size:11pt;font-family:var(--aptos);cursor:pointer;padding:2px 7px;line-height:1;transition:background .12s,border-color .12s;}
+  .strike-toolbar-btn:hover{background:var(--bg2);border-color:var(--border);}
+  .strike-toolbar-btn.active{background:var(--green-bg);border-color:var(--green);color:var(--green-txt);}
   .nosel,.nosel *{user-select:none!important;}
 </style>
 </head>
@@ -214,7 +218,7 @@
       <span id="sync-status">Connecting...</span>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
-      <button class="strike-btn" id="strike-btn" onclick="toggleStrikeMode()" title="Strike through a cell — click to enable, then click any cell">S̶ Strike Cell</button>
+      <button class="strike-btn" id="strike-btn" title="Select text in any cell to strike it through — or press Ctrl+S">S̶ Strike</button>
       <button class="btn btn-d" onclick="confirmClearAll()" title="Clear all data from all panels">✕ Clear All</button>
       <span style="color:var(--green-txt);font-size:11.5pt" id="sync-users"></span>
       <span style="color:var(--txt3);font-size:11.5pt" id="sync-time"></span>
@@ -751,6 +755,99 @@ function closeAuditPopover() {
 document.addEventListener('click', function(e) {
   if (_auditPopover && !_auditPopover.contains(e.target)) closeAuditPopover();
 });
+
+// ── Inline strike toolbar ─────────────────────────────────────
+var _strikeToolbar = null;
+var _strikeHideTimer = null;
+
+function createStrikeToolbar() {
+  if (_strikeToolbar) return _strikeToolbar;
+  var bar = document.createElement('div');
+  bar.className = 'strike-toolbar';
+  bar.id = 'strike-toolbar';
+  bar.style.display = 'none';
+  bar.innerHTML = '<button class="strike-toolbar-btn" id="strike-tb-btn" title="Toggle strikethrough on selected text (Ctrl+S)">S̶</button>';
+  bar.querySelector('#strike-tb-btn').addEventListener('mousedown', function(e) {
+    e.preventDefault(); // keep selection alive
+    applyTextStrike();
+  });
+  document.body.appendChild(bar);
+  _strikeToolbar = bar;
+  return bar;
+}
+
+function showStrikeToolbar(sel) {
+  if (!sel || sel.isCollapsed) { hideStrikeToolbar(); return; }
+  var range = sel.getRangeAt(0);
+  var container = range.commonAncestorContainer;
+  var el = container.nodeType === 3 ? container.parentElement : container;
+  var ce = el.closest && el.closest('[contenteditable]');
+  if (!ce) { hideStrikeToolbar(); return; }
+
+  clearTimeout(_strikeHideTimer);
+  var bar = createStrikeToolbar();
+  var rect = range.getBoundingClientRect();
+  if (!rect || rect.width === 0) { hideStrikeToolbar(); return; }
+
+  bar.style.display = 'flex';
+  requestAnimationFrame(function() {
+    var bw = bar.offsetWidth, bh = bar.offsetHeight;
+    var x  = rect.left + rect.width / 2 - bw / 2;
+    var y  = rect.top - bh - 8;
+    if (y < 4) y = rect.bottom + 8;
+    bar.style.left = Math.max(6, Math.min(x, window.innerWidth  - bw - 6)) + 'px';
+    bar.style.top  = Math.max(6, Math.min(y, window.innerHeight - bh - 6)) + 'px';
+
+    // Highlight button if selection is already struck
+    var allStruck = true;
+    var textNodes = [];
+    (function walk(node) {
+      if (node.nodeType === 3) textNodes.push(node);
+      else Array.from(node.childNodes).forEach(walk);
+    })(range.cloneContents());
+    if (textNodes.length === 0) allStruck = false;
+    var btn = bar.querySelector('#strike-tb-btn');
+    btn.classList.toggle('active', allStruck && el.closest('.struck') !== null);
+  });
+}
+
+function hideStrikeToolbar() {
+  _strikeHideTimer = setTimeout(function() {
+    if (_strikeToolbar) _strikeToolbar.style.display = 'none';
+  }, 120);
+}
+
+// Show toolbar on text selection in any contenteditable cell
+document.addEventListener('mouseup', function(e) {
+  if (_strikeToolbar && _strikeToolbar.contains(e.target)) return;
+  setTimeout(function() {
+    var sel = window.getSelection();
+    if (sel && !sel.isCollapsed) showStrikeToolbar(sel);
+    else hideStrikeToolbar();
+  }, 10);
+});
+
+document.addEventListener('keyup', function(e) {
+  // Ctrl+S / Cmd+S shortcut
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    applyTextStrike();
+    return;
+  }
+  var sel = window.getSelection();
+  if (sel && !sel.isCollapsed) showStrikeToolbar(sel);
+  else hideStrikeToolbar();
+});
+
+document.addEventListener('selectionchange', function() {
+  var sel = window.getSelection();
+  if (!sel || sel.isCollapsed) hideStrikeToolbar();
+});
+
+function toggleStrikeMode() {
+  // Legacy button — now just a no-op hint; toolbar replaces it
+  // Keep the button visible but inform user
+}
 
 // ── Strike mode ──────────────────────────────────────────────
 var strikeModeOn = false;
@@ -1894,11 +1991,15 @@ document.addEventListener('mousemove', function(e) {
 });
 
 document.addEventListener('mouseup', function(e) {
+  if (_strikeToolbar && _strikeToolbar.contains(e.target)) return;
   if (rowDrag) { finishRowDrag(); return; }
   if (dragging) { if (dragging.handle) dragging.handle.classList.remove('active'); dragging = null; }
   document.body.classList.remove('nosel');
-  // Apply text-selection strikethrough if strike mode is on
-  applyTextStrike();
+  setTimeout(function() {
+    var sel = window.getSelection();
+    if (sel && !sel.isCollapsed) showStrikeToolbar(sel);
+    else hideStrikeToolbar();
+  }, 10);
 });
 </script>
 </body>
