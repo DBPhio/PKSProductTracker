@@ -551,13 +551,15 @@ function initApp() {
     if (mainTbody && calcTbody && window.MutationObserver) {
       var debounceTimer = null;
       var obs = new MutationObserver(function(mutations) {
-        // Skip if the mutation is just character data (typing) — syncRowHeight handles that via onblur
-        var isTyping = mutations.every(function(m){ return m.type === 'characterData' || (m.type === 'childList' && m.target.closest && m.target.closest('.ci')); });
+        // Skip mutations caused by typing inside contenteditable cells
+        var isTyping = mutations.every(function(m) {
+          return m.type === 'childList' && m.target.isContentEditable;
+        });
         if (isTyping) return;
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(function(){ syncCalcRowHeights(tid); }, 150);
+        debounceTimer = setTimeout(function(){ syncCalcRowHeights(tid); }, 200);
       });
-      var cfg = { childList: true, subtree: true, characterData: true };
+      var cfg = { childList: true, subtree: true };
       obs.observe(mainTbody, cfg);
       obs.observe(calcTbody, cfg);
     }
@@ -698,6 +700,7 @@ function clearAllData() {
     return;
   }
   closeClearModal();
+  pushUndoState();
   IDS.forEach(function(tid) {
     T[tid].rows      = [];
     T[tid].deleted   = [];
@@ -927,6 +930,12 @@ function undoLast() {
 
 document.addEventListener('keydown', function(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    // Don't intercept browser's native undo when typing in a contenteditable or input
+    var tag = document.activeElement && document.activeElement.tagName;
+    var isEditing = document.activeElement &&
+      (document.activeElement.isContentEditable ||
+       tag === 'INPUT' || tag === 'TEXTAREA');
+    if (isEditing) return; // let browser handle text undo
     e.preventDefault();
     undoLast();
   }
@@ -1193,34 +1202,30 @@ function syncCalcRowHeights(tid) {
   _syncPending[tid] = true;
   requestAnimationFrame(function() {
     _syncPending[tid] = false;
-    var mainRows = Array.from(document.querySelectorAll('#' + tid + '-tbody tr'));
-    var calcRows = Array.from(document.querySelectorAll('#' + tid + '-calc-tbody tr'));
+    var mainRows = document.querySelectorAll('#' + tid + '-tbody tr');
+    var calcRows = document.querySelectorAll('#' + tid + '-calc-tbody tr');
     var len = Math.min(mainRows.length, calcRows.length);
     if (!len) return;
-    // 1. Clear all explicit heights so natural content height is revealed
+    // Measure current heights — only clear and re-lock where sides differ
     for (var i = 0; i < len; i++) {
+      var mh = mainRows[i].getBoundingClientRect().height;
+      var ch = calcRows[i].getBoundingClientRect().height;
+      if (Math.abs(mh - ch) <= 1) continue; // already aligned, skip
+      var locked = parseFloat(mainRows[i].style.height) || 0;
+      // Clear to get natural height, then re-lock
       mainRows[i].style.height = '';
       calcRows[i].style.height = '';
-    }
-    // 2. Force a reflow then lock both to max height
-    requestAnimationFrame(function() {
-      mainRows = Array.from(document.querySelectorAll('#' + tid + '-tbody tr'));
-      calcRows = Array.from(document.querySelectorAll('#' + tid + '-calc-tbody tr'));
-      len = Math.min(mainRows.length, calcRows.length);
-      for (var j = 0; j < len; j++) {
-        var mh = mainRows[j].getBoundingClientRect().height;
-        var ch = calcRows[j].getBoundingClientRect().height;
-        var h  = Math.ceil(Math.max(mh, ch));
-        if (h > 0 && Math.abs(mh - ch) > 1) {
-          mainRows[j].style.height = h + 'px';
-          calcRows[j].style.height = h + 'px';
-        }
+      var nmh = mainRows[i].getBoundingClientRect().height;
+      var nch = calcRows[i].getBoundingClientRect().height;
+      var h = Math.ceil(Math.max(nmh, nch, locked));
+      if (h > 0) {
+        mainRows[i].style.height = h + 'px';
+        calcRows[i].style.height = h + 'px';
       }
-      // Re-sync scroll position after height changes
-      var mw = document.getElementById(tid + '-tbody-wrap');
-      var cb = document.getElementById(tid + '-calc-body');
-      if (mw && cb) cb.scrollTop = mw.scrollTop;
-    });
+    }
+    var mw = document.getElementById(tid + '-tbody-wrap');
+    var cb = document.getElementById(tid + '-calc-body');
+    if (mw && cb && Math.abs(cb.scrollTop - mw.scrollTop) > 1) cb.scrollTop = mw.scrollTop;
   });
 }
 
@@ -1734,10 +1739,8 @@ function render(tid, remoteIds) {
   renderHeaders(tid);
   applyColWidths(tid);
   requestAnimationFrame(function() {
-    requestAnimationFrame(function() {
-      syncCalcRowHeights(tid);
-      hookDateInputs(tid);
-    });
+    syncCalcRowHeights(tid);
+    hookDateInputs(tid);
   });
 }
 
@@ -1775,6 +1778,8 @@ function toggleDelRow(tid, id, cb) {
   render(tid);
 }
 function permDeleteSelected(tid) {
+  if (!T[tid].permSelected.size) return;
+  pushUndoState();
   var s = T[tid];
   // Flash selected rows before removing
   s.permSelected.forEach(function(id) {
@@ -1820,6 +1825,7 @@ function deleteChecked(tid) {
   }, 300);
 }
 function restoreAll(tid) {
+  pushUndoState();
   var s = T[tid];
   // If nothing specifically selected, restore everything (keeps the toolbar button useful)
   var toRestore = s.permSelected.size > 0
