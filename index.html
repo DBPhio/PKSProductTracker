@@ -176,7 +176,11 @@
   .audit-entry-user{color:var(--green-txt);font-weight:500;}
   .audit-entry-time{color:var(--txt3);font-size:9pt;}
   .audit-entry-val{color:var(--txt2);font-size:9.5pt;margin-top:2px;word-break:break-word;max-height:40px;overflow:hidden;text-overflow:ellipsis;}
-  .corr-cell{display:flex;flex-direction:column;align-items:center;gap:8px;padding:4px 0;}
+  .lot-checks{display:flex;justify-content:space-between;margin-top:5px;gap:4px;}
+  .lot-checks-left,.lot-checks-right{display:flex;gap:6px;align-items:center;}
+  .lot-check-item{display:flex;align-items:center;gap:2px;font-size:9pt;font-family:var(--aptos);color:var(--txt3);cursor:pointer;user-select:none;}
+  .lot-check-item input{width:11px;height:11px;cursor:pointer;accent-color:var(--green);margin:0;}
+  .lot-check-item.checked{color:var(--green-txt);font-weight:500;}
   .corr-cell .corr-check{width:15px;height:15px;cursor:pointer;accent-color:#1D9E75;}
   .sterility-counter.ok{color:var(--green-txt);}
   .sterility-counter.warn{color:#f0c040;}
@@ -677,7 +681,7 @@ function setSyncStatus(state) {
 // ================================================================
 
 function mkRow(id) {
-  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', erLirNumber:'', lirNcrNumber:'', prInitialReview:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, done:false, strikes:{}, _cellMeta:{} };
+  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', lotChecks:{}, erLirNumber:'', lirNcrNumber:'', prInitialReview:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, done:false, strikes:{}, _cellMeta:{} };
 }
 
 function confirmClearAll() {
@@ -1318,8 +1322,31 @@ function rowHTML(tid, row, i, isDel) {
   var dataCols = (T[tid].dataColOrder || DEFAULT_DATA_COLS[tid]);
   var cells = dataCols.map(function(colKey) {
     switch(colKey) {
-      case 'lotNumbers':        return textTd('lotNumbers', row.lotNumbers, 'Lot numbers',
-                                  isDel && row._dispositionedAt ? '<span class="disp-stamp">Dispositioned: ' + row._dispositionedAt + '</span>' : '');
+      case 'lotNumbers': {
+        var lotSuffix = isDel && row._dispositionedAt
+          ? '<span class="disp-stamp">Dispositioned: ' + row._dispositionedAt + '</span>'
+          : '';
+        if (tid === 'imm') {
+          var lc = row.lotChecks || {};
+          var checked = Object.keys(lc).find(function(k){ return lc[k]; });
+          var BOXES = ['LM','LB','CM','CB'];
+          var leftBoxes = ['LM','LB'];
+          var rightBoxes = ['CM','CB'];
+          function mkBox(key) {
+            var isChecked = !!lc[key];
+            var hidden = (checked && !isChecked) ? ' style="display:none"' : '';
+            return '<label class="lot-check-item' + (isChecked ? ' checked' : '') + '"' + hidden + '>' +
+              '<input type="checkbox"' + (isChecked ? ' checked' : '') +
+              ' onchange="toggleLotCheck(event,\'imm\',' + row.id + ',\'' + key + '\',this)">' +
+              key + '</label>';
+          }
+          lotSuffix += '<div class="lot-checks">' +
+            '<div class="lot-checks-left">' + leftBoxes.map(mkBox).join('') + '</div>' +
+            '<div class="lot-checks-right">' + rightBoxes.map(mkBox).join('') + '</div>' +
+            '</div>';
+        }
+        return textTd('lotNumbers', row.lotNumbers, 'Lot numbers', lotSuffix);
+      }
       case 'dateIssued':        return dateCell('dateIssued', row.dateIssued, 'MM/DD/YYYY');
       case 'dateManufactured':  return dateCell('dateManufactured', row.dateManufactured, 'MM/DD/YYYY');
       case 'prInitialReview':   return tid === 'imm' ? dateCell('prInitialReview', row.prInitialReview, 'MM/DD/YYYY') : '';
@@ -1747,6 +1774,24 @@ function render(tid, remoteIds) {
 // ================================================================
 //  DATA MUTATIONS
 // ================================================================
+
+function toggleLotCheck(e, tid, id, key, cb) {
+  e.stopPropagation();
+  var s = T[tid];
+  var r = s.rows.find(function(r){ return r.id === id; }) ||
+          s.deleted.find(function(r){ return r.id === id; });
+  if (!r) return;
+  if (!r.lotChecks) r.lotChecks = {};
+  // Uncheck all others if checking one
+  if (cb.checked) {
+    ['LM','LB','CM','CB'].forEach(function(k){ r.lotChecks[k] = false; });
+    r.lotChecks[key] = true;
+  } else {
+    r.lotChecks[key] = false;
+  }
+  render(tid);
+  scheduleSave();
+}
 
 function toggleCorrections(tid, id, cb) {
   var s = T[tid];
