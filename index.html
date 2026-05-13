@@ -178,9 +178,10 @@
   .audit-entry-val{color:var(--txt2);font-size:9.5pt;margin-top:2px;word-break:break-word;max-height:40px;overflow:hidden;text-overflow:ellipsis;}
   .lot-checks{display:flex;justify-content:space-between;margin-top:4px;gap:3px;}
   .lot-checks-left,.lot-checks-right{display:flex;flex-direction:column;gap:2px;align-items:flex-start;}
+  .lot-checks.single-checked{justify-content:center;}
   .lot-check-item{display:flex;align-items:center;gap:2px;font-size:7.5pt;font-family:var(--aptos);color:var(--txt3);cursor:pointer;user-select:none;line-height:1;}
   .lot-check-item input{width:9px;height:9px;cursor:pointer;accent-color:var(--green);margin:0;flex-shrink:0;}
-  .lot-check-item.checked{color:var(--green-txt);font-weight:500;}
+  .lot-check-item.checked{color:var(--green-txt);font-weight:500;font-size:9pt;}
   .corr-cell .corr-check{width:15px;height:15px;cursor:pointer;accent-color:#1D9E75;}
   .sterility-counter.ok{color:var(--green-txt);}
   .sterility-counter.warn{color:#f0c040;}
@@ -1340,7 +1341,7 @@ function rowHTML(tid, row, i, isDel) {
               ' onchange="toggleLotCheck(event,\'imm\',' + row.id + ',\'' + key + '\',this)">' +
               key + '</label>';
           }
-          lotSuffix += '<div class="lot-checks">' +
+          lotSuffix += '<div class="lot-checks' + (checked ? ' single-checked' : '') + '">' +
             '<div class="lot-checks-left">' + leftBoxes.map(mkBox).join('') + '</div>' +
             '<div class="lot-checks-right">' + rightBoxes.map(mkBox).join('') + '</div>' +
             '</div>';
