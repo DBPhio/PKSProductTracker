@@ -1379,7 +1379,7 @@ function calcRowHTML(tid, row, isDel) {
     : (tid === 'imm' ? dBetween(row.prInitialReview, row.dateQAReturned) : dBetween(row.dateManufactured, row.dateReturned));
   var dQA = isDel ? (row._snapQA !== undefined ? row._snapQA : null)
     : (tid === 'imm' ? dBetween(row.initialReviewDate, row.reviewCompleteDate) : dBetween(row.dateQAReturned, row.initialReviewDate));
-  var dQC = (tid !== 'imm') ? (isDel ? (row._snapQC !== undefined ? row._snapQC : null) : dBetween(row.dateQCReturned, row.dateReviewQC)) : null;
+  var dQC = (tid !== 'imm') ? (isDel ? (row._snapQC !== undefined ? row._snapQC : null) : dBetween(row.dateReviewQC, row.dateQCReturned)) : null;
   var dRR = isDel ? (row._snapRR !== undefined ? row._snapRR : null) : dBetween(row.dateReturned, row.reviewCompleteDate);
 
   // ER/LIR and NCR — contenteditable text cells in the calc panel
@@ -1857,7 +1857,7 @@ function deleteChecked(tid) {
       // Freeze the calculated values at the moment of dispositioning
       r._snapIR = tid === 'imm' ? dBetween(r.prInitialReview, r.dateQAReturned) : dBetween(r.dateManufactured, r.dateReturned);
       r._snapQA = tid === 'imm' ? dBetween(r.initialReviewDate, r.reviewCompleteDate) : dBetween(r.dateQAReturned, r.initialReviewDate);
-      r._snapQC = dBetween(r.dateQCReturned, r.dateReviewQC);
+      r._snapQC = dBetween(r.dateReviewQC, r.dateQCReturned);
       r._snapRR = dBetween(r.dateReturned, r.reviewCompleteDate);
       // Stamp the date it was dispositioned
       var now = new Date();
