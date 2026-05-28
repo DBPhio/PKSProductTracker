@@ -548,6 +548,13 @@ function initApp() {
   injectColResizeHandles();
   initPanelResizers();
   initFirebaseListeners();
+  // Collapse all rows to their natural minimum height after first render
+  requestAnimationFrame(function() {
+    IDS.forEach(function(tid) {
+      var rows = T[tid].rows.concat(T[tid].deleted);
+      rows.forEach(function(r){ collapseRowHeight(tid, r.id); });
+    });
+  });
 
   // Watch for DOM changes and keep rows in sync — debounced so typing doesn't shake the layout
   IDS.forEach(function(tid) {
@@ -1235,6 +1242,29 @@ function syncCalcRowHeights(tid) {
 }
 
 // Sync a single row — called on every keystroke / date change
+// Shrink a row to its natural minimum height, keeping both sides in sync
+function collapseRowHeight(tid, rowId) {
+  var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
+               document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]');
+  var calcTr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + rowId + '"]');
+  if (!mainTr) return;
+  // Release height lock on both sides
+  mainTr.style.height = '';
+  if (calcTr) calcTr.style.height = '';
+  // After reflow, lock to natural max of both sides
+  requestAnimationFrame(function() {
+    var mh = mainTr.getBoundingClientRect().height;
+    var ch = calcTr ? calcTr.getBoundingClientRect().height : 0;
+    var h  = Math.ceil(Math.max(mh, ch));
+    if (h > 0) {
+      mainTr.style.height = h + 'px';
+      if (calcTr) calcTr.style.height = h + 'px';
+      // Update stored rowHeight so render() respects the new size
+      if (T[tid] && T[tid].rowHeights) T[tid].rowHeights[rowId] = h;
+    }
+  });
+}
+
 function syncRowHeight(tid, rowId) {
   // Only adjust the specific row being edited — never reset all heights (causes scroll jump)
   var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
@@ -1907,7 +1937,7 @@ function upd(tid, id, field, value) {
   stampAudit(r, field, value);
   r[field] = value;
   render(tid);
-  syncRowHeight(tid, id);
+  collapseRowHeight(tid, id);
   scheduleSave();
 }
 // Contenteditable divs: save innerHTML so struck spans are preserved
@@ -1939,6 +1969,8 @@ function updHtmlBlur(el) {
     stampAudit(r, field, el.innerHTML);
     scheduleSave();
   }
+  // Shrink row to natural minimum after edit
+  collapseRowHeight(tid, rowId);
 }
 
 // ================================================================
