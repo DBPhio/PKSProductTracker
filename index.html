@@ -915,7 +915,7 @@ function updateTicker() {
   var wrap    = document.getElementById('disp-ticker-wrap');
   if (!ticker || !wrap) return;
 
-  // Collect all dispositioned rows across all panels
+  // Collect all dispositioned rows across all panels — most recent first
   var items = [];
   IDS.forEach(function(tid) {
     (T[tid].deleted || []).forEach(function(r) {
@@ -924,6 +924,7 @@ function updateTicker() {
       if (lot || date) items.push({ lot: lot || '—', date: date || '—' });
     });
   });
+  items.reverse();
 
   if (!items.length) {
     ticker.className = 'disp-ticker';
