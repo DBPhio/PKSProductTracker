@@ -42,6 +42,14 @@
   #app{display:none;flex-direction:column;flex:1;overflow:hidden;}
   #app.unlocked{display:flex;}
   .sync-bar{display:flex;align-items:center;justify-content:space-between;padding:4px 12px;background:var(--bg3);border-bottom:1px solid #333;font-size:11.5pt;color:var(--txt3);font-family:var(--aptos);flex-shrink:0;gap:8px;}
+  .disp-ticker-wrap{flex:1;overflow:hidden;min-width:0;mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);-webkit-mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);}
+  .disp-ticker{display:flex;gap:0;white-space:nowrap;will-change:transform;}
+  .disp-ticker.scrolling{animation:ticker-scroll linear infinite;}
+  @keyframes ticker-scroll{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+  .disp-ticker-item{display:inline-flex;align-items:center;gap:6px;padding:0 24px;font-size:9.5pt;color:var(--txt3);font-family:var(--aptos);}
+  .disp-ticker-item .ticker-lot{color:var(--txt2);font-weight:500;}
+  .disp-ticker-item .ticker-sep{color:#555;}
+  .disp-ticker-item .ticker-date{color:var(--txt3);}
   .sync-dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0;transition:background .3s;}
   .sync-dot.live{background:var(--green);box-shadow:0 0 4px var(--green);}
   .sync-dot.saving{background:#f0c040;}
@@ -235,12 +243,15 @@
 <!-- ── App ── -->
 <div id="app">
   <div class="sync-bar">
-    <div style="display:flex;align-items:center;gap:6px;">
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
       <div class="sync-dot" id="sync-dot"></div>
       <span id="sync-status">Connecting...</span>
       <span class="save-indicator hidden" id="save-indicator"></span>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;">
+    <div class="disp-ticker-wrap" id="disp-ticker-wrap">
+      <div class="disp-ticker" id="disp-ticker"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
       <button class="view-toggle-btn" id="compact-btn" onclick="toggleCompact()" title="Toggle compact/comfortable row height">⇕ Compact</button>
       <button class="btn btn-d" onclick="confirmClearAll()" title="Clear all data from all panels">✕ Clear All</button>
       <span style="color:var(--green-txt);font-size:11.5pt" id="sync-users"></span>
@@ -880,7 +891,59 @@ document.addEventListener('selectionchange', function() {
 });
 
 // ================================================================
-//  FEATURE: COMPACT / COMFORTABLE TOGGLE (#13)
+//  DISPOSITION TICKER
+// ================================================================
+function updateTicker() {
+  var ticker  = document.getElementById('disp-ticker');
+  var wrap    = document.getElementById('disp-ticker-wrap');
+  if (!ticker || !wrap) return;
+
+  // Collect all dispositioned rows across all panels
+  var items = [];
+  IDS.forEach(function(tid) {
+    (T[tid].deleted || []).forEach(function(r) {
+      var lot  = (r.lotNumbers || '').replace(/<[^>]+>/g,'').trim();
+      var date = r._dispositionedAt || '';
+      if (lot || date) items.push({ lot: lot || '—', date: date || '—' });
+    });
+  });
+
+  if (!items.length) {
+    ticker.className = 'disp-ticker';
+    ticker.innerHTML = '';
+    return;
+  }
+
+  // Build one set of items, then duplicate for seamless loop
+  function buildItems(list) {
+    return list.map(function(item) {
+      return '<span class="disp-ticker-item">' +
+        '<span class="ticker-lot">' + esc(item.lot) + '</span>' +
+        '<span class="ticker-sep">·</span>' +
+        '<span class="ticker-date">' + esc(item.date) + '</span>' +
+        '</span>';
+    }).join('');
+  }
+
+  var html = buildItems(items) + buildItems(items); // duplicate for seamless loop
+  ticker.innerHTML = html;
+  ticker.className = 'disp-ticker';
+  ticker.style.animation = 'none';
+
+  // Calculate scroll speed based on content width
+  requestAnimationFrame(function() {
+    var contentW = ticker.scrollWidth / 2; // half since we duplicated
+    var wrapW    = wrap.offsetWidth || 300;
+    if (contentW <= wrapW) {
+      // Content fits — no scroll needed
+      ticker.innerHTML = buildItems(items);
+      return;
+    }
+    var duration = Math.max(10, contentW / 60); // ~60px per second
+    ticker.style.animationDuration = duration + 's';
+    ticker.className = 'disp-ticker scrolling';
+  });
+}
 // ================================================================
 var _isCompact = false;
 function toggleCompact() {
@@ -1799,6 +1862,7 @@ function render(tid, remoteIds) {
   requestAnimationFrame(function() {
     syncCalcRowHeights(tid);
     hookDateInputs(tid);
+    updateTicker();
   });
 }
 
