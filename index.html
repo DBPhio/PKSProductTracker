@@ -44,7 +44,7 @@
   .sync-bar{display:flex;align-items:center;justify-content:space-between;padding:4px 12px;background:var(--bg3);border-bottom:1px solid #333;font-size:11.5pt;color:var(--txt3);font-family:var(--aptos);flex-shrink:0;gap:8px;}
   .disp-ticker{display:flex;gap:0;white-space:nowrap;will-change:transform;}
   .disp-ticker-wrap{flex:1;overflow:hidden;min-width:0;mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);-webkit-mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);}
-  @keyframes ticker-scroll{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+  @keyframes ticker-scroll{from{transform:translate3d(0,0,0);}to{transform:translate3d(-50%,0,0);}}
   .disp-ticker-item{display:inline-flex;align-items:center;gap:6px;padding:0 24px;font-size:9.5pt;color:var(--txt3);font-family:var(--aptos);}
   .disp-ticker-item .ticker-lot{color:var(--txt2);font-weight:500;}
   .disp-ticker-item .ticker-sep{color:#555;}
@@ -90,7 +90,7 @@
   .tbody-wrap::-webkit-scrollbar-corner{background:transparent;}
   .tbody-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;}
   .calc-body-wrap{flex:1;overflow:auto;scrollbar-width:none;will-change:scroll-position;}
-  tbody tr{content-visibility:auto;contain-intrinsic-size:0 32px;}
+  tbody tr{content-visibility:auto;contain-intrinsic-size:0 32px;contain:layout style;}
   .panel-scroll-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;max-width:100%;}
   th{padding:5px 6px;text-align:center;font-weight:500;font-size:10pt;color:var(--txt2);border:var(--grid);white-space:normal;word-break:break-word;vertical-align:middle;overflow:hidden;position:relative;font-family:var(--aptos);line-height:1.3;background:var(--hdr);}
   th.cc{text-align:center;vertical-align:middle;}
@@ -303,7 +303,7 @@
               <th>QA Initial Review</th><th>Date Record Returned</th><th>QA Review Date</th><th>Corrections</th><th>Review Complete Date</th>
             </tr></thead></table>
           </div>
-          <div class="tbody-wrap" id="imm-tbody-wrap" onscroll="syncScroll('imm',this);syncCalcVScroll('imm',this)">
+          <div class="tbody-wrap" id="imm-tbody-wrap" >
             <table id="imm-table"><tbody id="imm-tbody"></tbody></table>
           </div>
         </div>
@@ -320,7 +320,7 @@
                 <th class="ca">Corrections</th>
               </tr></thead></table>
             </div>
-            <div class="calc-body-wrap" id="imm-calc-body" onscroll="syncMainVScroll('imm',this)">
+            <div class="calc-body-wrap" id="imm-calc-body">
               <table id="imm-calc-table"><tbody id="imm-calc-tbody"></tbody></table>
             </div>
           </div>
@@ -354,7 +354,7 @@
                 <th>Date PR Returned</th><th>Date QA Returned</th><th>Date QC Returned</th><th>PR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Corrections</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
-            <div class="tbody-wrap" id="prompt-tbody-wrap" onscroll="syncScroll('prompt',this);syncCalcVScroll('prompt',this)">
+            <div class="tbody-wrap" id="prompt-tbody-wrap" >
               <table id="prompt-table"><tbody id="prompt-tbody"></tbody></table>
             </div>
           </div>
@@ -373,7 +373,7 @@
                   <th class="ca">Corrections</th>
                 </tr></thead></table>
               </div>
-              <div class="calc-body-wrap" id="prompt-calc-body" onscroll="syncMainVScroll('prompt',this)">
+              <div class="calc-body-wrap" id="prompt-calc-body">
                 <table id="prompt-calc-table"><tbody id="prompt-calc-tbody"></tbody></table>
               </div>
             </div>
@@ -406,7 +406,7 @@
                 <th>Date PR Returned</th><th>Date QA Returned</th><th>Date QC Returned</th><th>PR Review Date</th><th>QC Review Date</th><th>QA Review Date</th><th>Corrections</th><th>Review Complete Date</th>
               </tr></thead></table>
             </div>
-            <div class="tbody-wrap" id="biofire-tbody-wrap" onscroll="syncScroll('biofire',this);syncCalcVScroll('biofire',this)">
+            <div class="tbody-wrap" id="biofire-tbody-wrap" >
               <table id="biofire-table"><tbody id="biofire-tbody"></tbody></table>
             </div>
           </div>
@@ -424,7 +424,7 @@
                   <th class="ca">Corrections</th>
                 </tr></thead></table>
               </div>
-              <div class="calc-body-wrap" id="biofire-calc-body" onscroll="syncMainVScroll('biofire',this)">
+              <div class="calc-body-wrap" id="biofire-calc-body">
                 <table id="biofire-calc-table"><tbody id="biofire-calc-tbody"></tbody></table>
               </div>
             </div>
@@ -574,6 +574,7 @@ function initApp() {
   IDS.forEach(function(tid){ render(tid); });
   injectColResizeHandles();
   initPanelResizers();
+  attachScrollListeners();
   initFirebaseListeners();
   // Collapse all rows to their natural minimum height after first render
   requestAnimationFrame(function() {
@@ -945,7 +946,7 @@ function updateTicker() {
   ticker.innerHTML = html;
   ticker.className = 'disp-ticker';
   ticker.style.animation = 'none';
-  ticker.style.transform = 'translateX(0)';
+  ticker.style.transform = 'translate3d(0,0,0)';
 
   // Force reflow so the browser registers the reset before starting animation
   requestAnimationFrame(function() {
@@ -1272,24 +1273,60 @@ function cCell(v) {
   return '<td class="ca hv">' + v + 'd</td>';
 }
 
+// ── Cached DOM references ─────────────────────────────────────
+var _DOM = {};
+function dom(id) {
+  if (!_DOM[id]) _DOM[id] = document.getElementById(id);
+  return _DOM[id];
+}
+
 function syncScroll(tid, bw) {
-  document.getElementById(tid + '-thead-wrap').scrollLeft = bw.scrollLeft;
+  var th = dom(tid + '-thead-wrap');
+  if (th) th.scrollLeft = bw.scrollLeft;
 }
 
 var _scrollSyncing = {};
+var _scrollRAF     = {};
 function syncCalcVScroll(tid, el) {
   if (_scrollSyncing[tid]) return;
-  _scrollSyncing[tid] = true;
-  var cb = document.getElementById(tid + '-calc-body');
-  if (cb) cb.scrollTop = el.scrollTop;
-  _scrollSyncing[tid] = false;
+  if (_scrollRAF[tid + '-c']) return;
+  _scrollRAF[tid + '-c'] = requestAnimationFrame(function() {
+    _scrollRAF[tid + '-c'] = null;
+    _scrollSyncing[tid] = true;
+    var cb = dom(tid + '-calc-body');
+    if (cb) cb.scrollTop = el.scrollTop;
+    _scrollSyncing[tid] = false;
+  });
 }
 function syncMainVScroll(tid, el) {
   if (_scrollSyncing[tid]) return;
-  _scrollSyncing[tid] = true;
-  var mb = document.getElementById(tid + '-tbody-wrap');
-  if (mb) mb.scrollTop = el.scrollTop;
-  _scrollSyncing[tid] = false;
+  if (_scrollRAF[tid + '-m']) return;
+  _scrollRAF[tid + '-m'] = requestAnimationFrame(function() {
+    _scrollRAF[tid + '-m'] = null;
+    _scrollSyncing[tid] = true;
+    var mb = dom(tid + '-tbody-wrap');
+    if (mb) mb.scrollTop = el.scrollTop;
+    _scrollSyncing[tid] = false;
+  });
+}
+
+function attachScrollListeners() {
+  IDS.forEach(function(tid) {
+    var tbodyWrap = dom(tid + '-tbody-wrap');
+    var calcBody  = dom(tid + '-calc-body');
+    var theadWrap = dom(tid + '-thead-wrap');
+    if (tbodyWrap) {
+      tbodyWrap.addEventListener('scroll', function() {
+        if (theadWrap) theadWrap.scrollLeft = tbodyWrap.scrollLeft;
+        syncCalcVScroll(tid, tbodyWrap);
+      }, { passive: true });
+    }
+    if (calcBody) {
+      calcBody.addEventListener('scroll', function() {
+        syncMainVScroll(tid, calcBody);
+      }, { passive: true });
+    }
+  });
 }
 
 // Core row-height sync — resets all heights, measures natural sizes,
@@ -1304,26 +1341,33 @@ function syncCalcRowHeights(tid) {
     var calcRows = document.querySelectorAll('#' + tid + '-calc-tbody tr');
     var len = Math.min(mainRows.length, calcRows.length);
     if (!len) return;
-    // Measure current heights — only clear and re-lock where sides differ
+    // WRITE: clear locks on misaligned rows only
+    var needsUpdate = [];
     for (var i = 0; i < len; i++) {
-      var mh = mainRows[i].getBoundingClientRect().height;
-      var ch = calcRows[i].getBoundingClientRect().height;
-      if (Math.abs(mh - ch) <= 1) continue; // already aligned, skip
-      var locked = parseFloat(mainRows[i].style.height) || 0;
-      // Clear to get natural height, then re-lock
-      mainRows[i].style.height = '';
-      calcRows[i].style.height = '';
-      var nmh = mainRows[i].getBoundingClientRect().height;
-      var nch = calcRows[i].getBoundingClientRect().height;
-      var h = Math.ceil(Math.max(nmh, nch, locked));
-      if (h > 0) {
-        mainRows[i].style.height = h + 'px';
-        calcRows[i].style.height = h + 'px';
+      var mh = mainRows[i].getBoundingClientRect().height; // READ
+      var ch = calcRows[i].getBoundingClientRect().height; // READ
+      if (Math.abs(mh - ch) > 1) {
+        needsUpdate.push({ main: mainRows[i], calc: calcRows[i] });
+        mainRows[i].style.height = ''; // WRITE batch 1
+        calcRows[i].style.height = ''; // WRITE batch 1
       }
     }
-    var mw = document.getElementById(tid + '-tbody-wrap');
-    var cb = document.getElementById(tid + '-calc-body');
-    if (mw && cb && Math.abs(cb.scrollTop - mw.scrollTop) > 1) cb.scrollTop = mw.scrollTop;
+    if (!needsUpdate.length) return;
+    // READ natural heights, then WRITE locks — all in one rAF
+    requestAnimationFrame(function() {
+      needsUpdate.forEach(function(pair) {
+        var mh = pair.main.getBoundingClientRect().height; // READ
+        var ch = pair.calc.getBoundingClientRect().height; // READ
+        var h  = Math.ceil(Math.max(mh, ch));
+        if (h > 0) {
+          pair.main.style.height = h + 'px'; // WRITE
+          pair.calc.style.height = h + 'px'; // WRITE
+        }
+      });
+      var mw = dom(tid + '-tbody-wrap');
+      var cb = dom(tid + '-calc-body');
+      if (mw && cb && Math.abs(cb.scrollTop - mw.scrollTop) > 1) cb.scrollTop = mw.scrollTop;
+    });
   });
 }
 
@@ -1334,18 +1378,17 @@ function collapseRowHeight(tid, rowId) {
                document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]');
   var calcTr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + rowId + '"]');
   if (!mainTr) return;
-  // Release height lock on both sides
+  // WRITE: release locks
   mainTr.style.height = '';
   if (calcTr) calcTr.style.height = '';
-  // After reflow, lock to natural max of both sides
+  // READ then WRITE in next frame — avoids forced synchronous layout
   requestAnimationFrame(function() {
-    var mh = mainTr.getBoundingClientRect().height;
-    var ch = calcTr ? calcTr.getBoundingClientRect().height : 0;
+    var mh = mainTr.getBoundingClientRect().height; // READ
+    var ch = calcTr ? calcTr.getBoundingClientRect().height : 0; // READ
     var h  = Math.ceil(Math.max(mh, ch));
     if (h > 0) {
-      mainTr.style.height = h + 'px';
-      if (calcTr) calcTr.style.height = h + 'px';
-      // Update stored rowHeight so render() respects the new size
+      mainTr.style.height = h + 'px'; // WRITE
+      if (calcTr) calcTr.style.height = h + 'px'; // WRITE
       if (T[tid] && T[tid].rowHeights) T[tid].rowHeights[rowId] = h;
     }
   });
