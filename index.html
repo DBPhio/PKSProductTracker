@@ -42,9 +42,8 @@
   #app{display:none;flex-direction:column;flex:1;overflow:hidden;}
   #app.unlocked{display:flex;}
   .sync-bar{display:flex;align-items:center;justify-content:space-between;padding:4px 12px;background:var(--bg3);border-bottom:1px solid #333;font-size:11.5pt;color:var(--txt3);font-family:var(--aptos);flex-shrink:0;gap:8px;}
-  .disp-ticker-wrap{flex:1;overflow:hidden;min-width:0;mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);-webkit-mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);}
   .disp-ticker{display:flex;gap:0;white-space:nowrap;will-change:transform;}
-  .disp-ticker.scrolling{animation:ticker-scroll linear infinite;}
+  .disp-ticker-wrap{flex:1;overflow:hidden;min-width:0;mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);-webkit-mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);}
   @keyframes ticker-scroll{from{transform:translateX(0);}to{transform:translateX(-50%);}}
   .disp-ticker-item{display:inline-flex;align-items:center;gap:6px;padding:0 24px;font-size:9.5pt;color:var(--txt3);font-family:var(--aptos);}
   .disp-ticker-item .ticker-lot{color:var(--txt2);font-weight:500;}
@@ -925,23 +924,30 @@ function updateTicker() {
     }).join('');
   }
 
-  var html = buildItems(items) + buildItems(items); // duplicate for seamless loop
+  var html = buildItems(items) + buildItems(items);
   ticker.innerHTML = html;
   ticker.className = 'disp-ticker';
   ticker.style.animation = 'none';
+  ticker.style.transform = 'translateX(0)';
 
-  // Calculate scroll speed based on content width
+  // Force reflow so the browser registers the reset before starting animation
   requestAnimationFrame(function() {
-    var contentW = ticker.scrollWidth / 2; // half since we duplicated
-    var wrapW    = wrap.offsetWidth || 300;
-    if (contentW <= wrapW) {
-      // Content fits — no scroll needed
-      ticker.innerHTML = buildItems(items);
-      return;
-    }
-    var duration = Math.max(10, contentW / 60); // ~60px per second
-    ticker.style.animationDuration = duration + 's';
-    ticker.className = 'disp-ticker scrolling';
+    requestAnimationFrame(function() {
+      var contentW = ticker.scrollWidth / 2;
+      var wrapW    = wrap.offsetWidth || 300;
+      if (contentW <= wrapW) {
+        ticker.innerHTML = buildItems(items);
+        return;
+      }
+      var duration = Math.max(8, contentW / 80);
+      ticker.style.animation = '';
+      ticker.style.transform = '';
+      ticker.style.animationName        = 'ticker-scroll';
+      ticker.style.animationDuration    = duration + 's';
+      ticker.style.animationTimingFunction = 'linear';
+      ticker.style.animationIterationCount = 'infinite';
+      ticker.classList.add('scrolling');
+    });
   });
 }
 // ================================================================
