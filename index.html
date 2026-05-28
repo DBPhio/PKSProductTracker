@@ -82,13 +82,15 @@
   .thead-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;height:100%;}
   .thead-wrap::-webkit-scrollbar{width:6px;height:0;background:transparent;}
   .thead-wrap::-webkit-scrollbar-thumb{background:transparent;}
-  .tbody-wrap{flex:1;overflow-x:auto;overflow-y:scroll;border:1px solid var(--border);border-top:none;background:var(--bg);max-width:100%;}
+  .tbody-wrap{flex:1;overflow-x:auto;overflow-y:scroll;border:1px solid var(--border);border-top:none;background:var(--bg);max-width:100%;will-change:scroll-position;}
   .tbody-wrap::-webkit-scrollbar{width:6px;height:6px;}
   .tbody-wrap::-webkit-scrollbar-track{background:transparent;}
   .tbody-wrap::-webkit-scrollbar-thumb{background:#555;border-radius:4px;}
   .tbody-wrap::-webkit-scrollbar-thumb:hover{background:#777;}
   .tbody-wrap::-webkit-scrollbar-corner{background:transparent;}
   .tbody-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;}
+  .calc-body-wrap{flex:1;overflow:auto;scrollbar-width:none;will-change:scroll-position;}
+  tbody tr{content-visibility:auto;contain-intrinsic-size:0 32px;}
   .panel-scroll-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;max-width:100%;}
   th{padding:5px 6px;text-align:center;font-weight:500;font-size:10pt;color:var(--txt2);border:var(--grid);white-space:normal;word-break:break-word;vertical-align:middle;overflow:hidden;position:relative;font-family:var(--aptos);line-height:1.3;background:var(--hdr);}
   th.cc{text-align:center;vertical-align:middle;}
@@ -200,7 +202,6 @@
   .calc-panel.collapsed{width:0!important;border-left:none;min-width:0;}
   .calc-panel-toggle{flex-shrink:0;width:18px;background:var(--calc-bg);border:none;border-left:2px solid var(--green);cursor:pointer;color:var(--green-txt);font-size:8.5pt;font-family:var(--aptos);writing-mode:vertical-rl;text-orientation:mixed;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s;}
   .calc-panel-toggle:hover{background:var(--green-bg);}
-  .calc-body-wrap{flex:1;overflow:auto;scrollbar-width:none;}
   .calc-body-wrap::-webkit-scrollbar{display:none;}
   .calc-body-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;}
   th.col-drag-over{border-left:2px solid var(--green)!important;}
@@ -478,6 +479,22 @@ IDS.forEach(function(tid) {
 });
 
 var saveTimer    = null;
+var _renderPending = {};      // tid → rAF id
+var _renderRemoteIds = {};    // tid → accumulated remoteIds
+
+function scheduleRender(tid, remoteIds) {
+  // Accumulate remoteIds across rapid calls
+  if (remoteIds && remoteIds.length) {
+    _renderRemoteIds[tid] = (_renderRemoteIds[tid] || []).concat(remoteIds);
+  }
+  if (_renderPending[tid]) return; // already scheduled
+  _renderPending[tid] = requestAnimationFrame(function() {
+    _renderPending[tid] = null;
+    var ids = _renderRemoteIds[tid] || [];
+    _renderRemoteIds[tid] = [];
+    render(tid, ids);
+  });
+}
 var fbDatabase   = null;
 var currentUser  = null; // set on auth
 
@@ -579,7 +596,7 @@ function initApp() {
         });
         if (isTyping) return;
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(function(){ syncCalcRowHeights(tid); }, 200);
+        debounceTimer = setTimeout(function(){ syncCalcRowHeights(tid); }, 100);
       });
       var cfg = { childList: true, subtree: true };
       obs.observe(mainTbody, cfg);
@@ -1029,7 +1046,7 @@ var _lastCheckedRow = {}; // tid → rowId
 
 function toggleRow(tid, id, cb) {
   var r = T[tid].rows.find(function(r){ return r.id === id; });
-  if (r) { r.done = cb.checked; render(tid); scheduleSave(); }
+  if (r) { r.done = cb.checked; scheduleRender(tid); scheduleSave(); }
   _lastCheckedRow[tid] = id;
 }
 
@@ -1912,7 +1929,7 @@ function toggleCorrections(tid, id, cb) {
 
 function toggleRow(tid, id, cb) {
   var r = T[tid].rows.find(function(r){ return r.id === id; });
-  if (r) { r.done = cb.checked; render(tid); scheduleSave(); }
+  if (r) { r.done = cb.checked; scheduleRender(tid); scheduleSave(); }
 }
 function toggleDelRow(tid, id, cb) {
   var s = T[tid];
@@ -1921,7 +1938,7 @@ function toggleDelRow(tid, id, cb) {
   } else {
     s.permSelected.delete(id);
   }
-  render(tid);
+  scheduleRender(tid);
 }
 function permDeleteSelected(tid) {
   if (!T[tid].permSelected.size) return;
@@ -2006,7 +2023,7 @@ function upd(tid, id, field, value) {
   }
   stampAudit(r, field, value);
   r[field] = value;
-  render(tid);
+  scheduleRender(tid);
   collapseRowHeight(tid, id);
   scheduleSave();
 }
