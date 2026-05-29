@@ -545,7 +545,6 @@ IDS.forEach(function(tid) {
     restored:  new Set(),
     permSelected: new Set(),
     colWidths: (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : tid === 'biofire' ? DEFAULT_COL_W_BIOFIRE : DEFAULT_COL_W).slice(),
-    rowHeights: {},
     colTitles: {},
     dataColOrder: null,
     calcColOrder: null
@@ -797,7 +796,6 @@ function clearAllData() {
     T[tid].nextId    = 1;
     T[tid].permSelected.clear();
     T[tid].restored.clear();
-    T[tid].rowHeights = {};
     scheduleRender(tid);
   });
   scheduleSave();
@@ -1930,23 +1928,24 @@ function syncCalcRowHeights(tid) {
 // Sync a single row — called on every keystroke / date change
 // Shrink a row to its natural minimum height, keeping both sides in sync
 function collapseRowHeight(tid, rowId) {
-  var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
-               document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]');
-  var calcTr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + rowId + '"]');
-  if (!mainTr) return;
-  // WRITE: release locks
-  mainTr.style.height = '';
-  if (calcTr) calcTr.style.height = '';
-  // READ then WRITE in next frame — avoids forced synchronous layout
+  // Let the browser settle then lock both sides to the same max height
   requestAnimationFrame(function() {
-    var mh = mainTr.getBoundingClientRect().height; // READ
-    var ch = calcTr ? calcTr.getBoundingClientRect().height : 0; // READ
-    var h  = Math.ceil(Math.max(mh, ch));
-    if (h > 0) {
-      mainTr.style.height = h + 'px'; // WRITE
-      if (calcTr) calcTr.style.height = h + 'px'; // WRITE
-      if (T[tid] && T[tid].rowHeights) T[tid].rowHeights[rowId] = h;
-    }
+    var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
+                 document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]');
+    var calcTr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + rowId + '"]');
+    if (!mainTr) return;
+    // Clear to natural height first, read, then lock both sides
+    mainTr.style.height = '';
+    if (calcTr) calcTr.style.height = '';
+    requestAnimationFrame(function() {
+      var mh = mainTr.getBoundingClientRect().height;
+      var ch = calcTr ? calcTr.getBoundingClientRect().height : 0;
+      var h  = Math.ceil(Math.max(mh, ch));
+      if (h > 0) {
+        mainTr.style.height = h + 'px';
+        if (calcTr) calcTr.style.height = h + 'px';
+      }
+    });
   });
 }
 
@@ -2402,7 +2401,6 @@ function render(tid, remoteIds) {
     if (remoteIds.indexOf(row.id) !== -1) tr.classList.add('remote-update');
     tr.dataset.id = row.id;
     tr.innerHTML  = rowHTML(tid, row, i, false);
-    if (s.rowHeights[row.id]) tr.style.height = s.rowHeights[row.id] + 'px';
     tbody.appendChild(tr);
     // Calc row
     if (calcTbody) {
@@ -2411,7 +2409,6 @@ function render(tid, remoteIds) {
       if (remoteIds.indexOf(row.id) !== -1) ctr.classList.add('remote-update');
       ctr.dataset.id = row.id;
       ctr.innerHTML  = calcRowHTML(tid, row, false);
-      if (s.rowHeights[row.id]) ctr.style.height = s.rowHeights[row.id] + 'px';
       calcTbody.appendChild(ctr);
     }
   });
@@ -2893,7 +2890,6 @@ document.addEventListener('mousemove', function(e) {
     applyColWidths(dragging.tid);
   } else if (dragging.type === 'row') {
     var newH = Math.max(22, dragging.startH + (e.clientY - dragging.startY));
-    T[dragging.tid].rowHeights[dragging.rowId] = newH;
     var tr = document.querySelector('#' + dragging.tid + '-tbody tr[data-id="' + dragging.rowId + '"]');
     if (tr) tr.style.height = newH + 'px';
     var ctr = document.querySelector('#' + dragging.tid + '-calc-tbody tr[data-id="' + dragging.rowId + '"]');
