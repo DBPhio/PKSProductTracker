@@ -42,7 +42,7 @@
   #app{display:none;flex-direction:column;flex:1;overflow:hidden;}
   #app.unlocked{display:flex;}
   .sync-bar{display:flex;align-items:center;justify-content:space-between;padding:4px 12px;background:var(--bg3);border-bottom:1px solid #333;font-size:11.5pt;color:var(--txt3);font-family:var(--aptos);flex-shrink:0;gap:8px;}
-  .disp-ticker{display:flex;gap:0;white-space:nowrap;will-change:transform;}
+  .disp-ticker{display:flex;gap:0;white-space:nowrap;will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden;transform-style:preserve-3d;}
   .disp-ticker-wrap{flex:1;overflow:hidden;min-width:0;mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);-webkit-mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);}
   @keyframes ticker-scroll{from{transform:translate3d(0,0,0);}to{transform:translate3d(-50%,0,0);}}
   .disp-ticker-item{display:inline-flex;align-items:center;gap:6px;padding:0 24px;font-size:9.5pt;color:var(--txt3);font-family:var(--aptos);}
@@ -950,7 +950,6 @@ function updateTicker() {
   ticker.style.animation = 'none';
   ticker.style.transform = 'translate3d(0,0,0)';
 
-  // Force reflow so the browser registers the reset before starting animation
   requestAnimationFrame(function() {
     requestAnimationFrame(function() {
       var contentW = ticker.scrollWidth / 2;
@@ -959,14 +958,23 @@ function updateTicker() {
         ticker.innerHTML = buildItems(items);
         return;
       }
-      var duration = Math.max(8, contentW / 80);
-      ticker.style.animation = '';
-      ticker.style.transform = '';
-      ticker.style.animationName        = 'ticker-scroll';
-      ticker.style.animationDuration    = duration + 's';
-      ticker.style.animationTimingFunction = 'linear';
-      ticker.style.animationIterationCount = 'infinite';
-      ticker.classList.add('scrolling');
+      // Cancel any existing loop
+      if (wrap._tickerRAF) cancelAnimationFrame(wrap._tickerRAF);
+
+      var speed = 40; // px per second — adjust for feel
+      var pos   = 0;
+      var last  = null;
+
+      function step(ts) {
+        if (last === null) last = ts;
+        var delta = (ts - last) / 1000;
+        last = ts;
+        pos += speed * delta;
+        if (pos >= contentW) pos -= contentW;
+        ticker.style.transform = 'translate3d(' + (-pos).toFixed(3) + 'px,0,0)';
+        wrap._tickerRAF = requestAnimationFrame(step);
+      }
+      wrap._tickerRAF = requestAnimationFrame(step);
     });
   });
 }
