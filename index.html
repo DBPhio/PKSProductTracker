@@ -1303,11 +1303,17 @@ var _wheelTimer     = {};
 function markWheelScrolling(tid) {
   _wheelScrolling[tid] = true;
   clearTimeout(_wheelTimer[tid]);
-  _wheelTimer[tid] = setTimeout(function() { _wheelScrolling[tid] = false; }, 80);
+  _wheelTimer[tid] = setTimeout(function() {
+    _wheelScrolling[tid] = false;
+    // Final sync after wheel stops — ensure green section is aligned
+    var tw = dom(tid + '-tbody-wrap');
+    var cb = dom(tid + '-calc-body');
+    if (tw && cb) cb.scrollTop = tw.scrollTop;
+  }, 80);
 }
 
 function syncCalcVScroll(tid, el) {
-  if (_scrollSyncing[tid] || _wheelScrolling[tid]) return;
+  if (_scrollSyncing[tid]) return;
   if (_scrollRAF[tid + '-c']) return;
   _scrollRAF[tid + '-c'] = requestAnimationFrame(function() {
     _scrollRAF[tid + '-c'] = null;
@@ -1318,7 +1324,7 @@ function syncCalcVScroll(tid, el) {
   });
 }
 function syncMainVScroll(tid, el) {
-  if (_scrollSyncing[tid] || _wheelScrolling[tid]) return;
+  if (_scrollSyncing[tid]) return;
   if (_scrollRAF[tid + '-m']) return;
   _scrollRAF[tid + '-m'] = requestAnimationFrame(function() {
     _scrollRAF[tid + '-m'] = null;
