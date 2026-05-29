@@ -74,9 +74,6 @@
   /* ═══ 9. Auto-scroll to new row indicator ═══ */
   tr.row-new-highlight td{background:rgba(29,158,117,0.12)!important;transition:background 1.2s;}
 
-  /* ═══ 10. Overdue row highlight ═══ */
-  tr.row-overdue td{background:rgba(120,30,30,0.15)!important;}
-  tr.row-overdue:hover td{background:rgba(120,30,30,0.25)!important;}
 
   /* ═══ 11. Panel stat badges ═══ */
   .panel-stat{font-size:9pt;color:var(--txt3);font-family:var(--aptos);padding:1px 6px;border-radius:99px;background:var(--bg2);border:1px solid #444;white-space:nowrap;}
@@ -1039,7 +1036,6 @@ var _idleTimers = {};
 function scheduleIdleWork(tid) {
   clearTimeout(_idleTimers[tid]);
   _idleTimers[tid] = setTimeout(function() {
-    applyOverdueHighlight(tid);
     injectRowHoverActions(tid);
     applyDateWarnings(tid);
   }, 120);
