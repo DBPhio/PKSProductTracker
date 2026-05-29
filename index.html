@@ -69,6 +69,7 @@
   tr:hover .row-actions{display:flex;}
   .row-action-btn{background:transparent;border:none;cursor:pointer;font-size:9pt;color:var(--txt3);padding:1px 4px;border-radius:3px;font-family:var(--aptos);line-height:1.4;transition:background .12s,color .12s;}
   .row-action-btn:hover{background:var(--green-bg);color:var(--green-txt);}
+  .row-actions-cell{position:relative;}
 
   /* ═══ 9. Auto-scroll to new row indicator ═══ */
   tr.row-new-highlight td{background:rgba(29,158,117,0.12)!important;transition:background 1.2s;}
@@ -1122,15 +1123,17 @@ function injectRowHoverActions(tid) {
   if (!tbody) return;
   tbody.querySelectorAll('tr[data-id]').forEach(function(tr) {
     var rowId = parseInt(tr.dataset.id);
-    var cnCell = tr.querySelector('td.cn');
-    if (!cnCell || cnCell.querySelector('.row-actions')) return;
+    // Put actions in the last data cell to avoid the drag handle
+    var tds = tr.querySelectorAll('td');
+    var lastTd = tds[tds.length - 1];
+    if (!lastTd || lastTd.querySelector('.row-actions')) return;
     var div = document.createElement('div');
     div.className = 'row-actions';
     div.innerHTML =
       '<button class="row-action-btn" onclick="dispositionRow(event,\'' + tid + '\',' + rowId + ')" title="Disposition">📥</button>' +
       '<button class="row-action-btn" onclick="duplicateRow(event,\'' + tid + '\',' + rowId + ')" title="Duplicate">⧉</button>';
-    cnCell.style.position = 'relative';
-    cnCell.appendChild(div);
+    lastTd.classList.add('row-actions-cell');
+    lastTd.appendChild(div);
   });
 }
 
