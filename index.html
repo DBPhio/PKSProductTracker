@@ -797,7 +797,7 @@ function clearAllData() {
     T[tid].permSelected.clear();
     T[tid].restored.clear();
     T[tid].rowHeights = {};
-    render(tid);
+    scheduleRender(tid);
   });
   scheduleSave();
 }
@@ -1033,6 +1033,17 @@ function updateTicker() {
 //            OVERDUE HIGHLIGHT, DATE WARNING, PANEL SHRINK,
 //            ROW HOVER ACTIONS, KEYBOARD NAV, AUTO-SCROLL (#2,4,5,6,9,10,11,12,13)
 // ================================================================
+
+// Non-critical visual work deferred until after render settles
+var _idleTimers = {};
+function scheduleIdleWork(tid) {
+  clearTimeout(_idleTimers[tid]);
+  _idleTimers[tid] = setTimeout(function() {
+    applyOverdueHighlight(tid);
+    injectRowHoverActions(tid);
+    applyDateWarnings(tid);
+  }, 120);
+}
 
 // ── Skeleton loading ───────────────────────────────────────────
 function showSkeletonRows(tid) {
@@ -1271,7 +1282,7 @@ function undoLast() {
     T[tid].rows    = snapshot[tid].rows;
     T[tid].deleted = snapshot[tid].deleted;
     T[tid].nextId  = snapshot[tid].nextId;
-    render(tid);
+    scheduleRender(tid);
   });
   scheduleSave();
 }
@@ -1661,31 +1672,20 @@ function collapseRowHeight(tid, rowId) {
 }
 
 function syncRowHeight(tid, rowId) {
-  // Only adjust the specific row being edited — never reset all heights (causes scroll jump)
   var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
                document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]');
   var calcTr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + rowId + '"]');
   if (!mainTr) return;
-
-  // Temporarily release height lock to measure natural content height
-  var prevMain = mainTr.style.height;
-  var prevCalc = calcTr ? calcTr.style.height : '';
+  // Only expand — reset and remeasure in one RAF to avoid forced reflow during typing
   mainTr.style.height = '';
   if (calcTr) calcTr.style.height = '';
-
   requestAnimationFrame(function() {
     var mh = mainTr.getBoundingClientRect().height;
     var ch = calcTr ? calcTr.getBoundingClientRect().height : 0;
-    var h  = Math.ceil(Math.max(mh, ch));
-    var prev = Math.ceil(parseFloat(prevMain) || 0);
-    // Only apply if height actually changed to avoid unnecessary reflows
-    if (h > 0 && h !== prev) {
+    var h = Math.ceil(Math.max(mh, ch));
+    if (h > 0) {
       mainTr.style.height = h + 'px';
       if (calcTr) calcTr.style.height = h + 'px';
-    } else {
-      // Restore previous heights if no change needed
-      mainTr.style.height = prevMain;
-      if (calcTr) calcTr.style.height = prevCalc;
     }
   });
 }
@@ -2197,9 +2197,7 @@ function render(tid, remoteIds) {
     updateTicker();
     renderEmptyState(tid);
     updatePanelStat(tid);
-    applyOverdueHighlight(tid);
-    injectRowHoverActions(tid);
-    requestAnimationFrame(function(){ applyDateWarnings(tid); });
+    scheduleIdleWork(tid);
   });
 }
 
@@ -2221,7 +2219,7 @@ function toggleLotCheck(e, tid, id, key, cb) {
   } else {
     r.lotChecks[key] = false;
   }
-  render(tid);
+  scheduleRender(tid);
   scheduleSave();
 }
 
@@ -2232,12 +2230,11 @@ function toggleCorrections(tid, id, cb) {
   if (!r) return;
   r.correctionsComplete = cb.checked;
   if (cb.checked && r.correctionsDate) {
-    // Freeze the count at this moment
     r._corrDaysAtComplete = dSince(r.correctionsDate);
   } else {
     delete r._corrDaysAtComplete;
   }
-  render(tid);
+  scheduleRender(tid);
   scheduleSave();
 }
 
@@ -2266,7 +2263,7 @@ function permDeleteSelected(tid) {
   setTimeout(function() {
     s.deleted = s.deleted.filter(function(r){ return !s.permSelected.has(r.id); });
     s.permSelected.clear();
-    render(tid);
+    scheduleRender(tid);
     scheduleSave();
   }, 300);
 }
@@ -2298,7 +2295,7 @@ function deleteChecked(tid) {
       s.deleted.push(r);
     });
     s.rows = s.rows.filter(function(r){ return toDel.indexOf(r) === -1; });
-    render(tid); scheduleSave();
+    scheduleRender(tid); scheduleSave();
   }, 300);
 }
 function restoreAll(tid) {
@@ -2317,7 +2314,7 @@ function restoreAll(tid) {
   var restoreIds = new Set(toRestore.map(function(r){ return r.id; }));
   s.deleted = s.deleted.filter(function(r){ return !restoreIds.has(r.id); });
   s.permSelected.clear();
-  render(tid); scheduleSave();
+  scheduleRender(tid); scheduleSave();
 }
 function addRow(tid) {
   var s = T[tid];
