@@ -41,7 +41,55 @@
   /* ── App ── */
   #app{display:none;flex-direction:column;flex:1;overflow:hidden;}
   #app.unlocked{display:flex;}
-  .sync-bar{display:flex;align-items:center;justify-content:space-between;padding:4px 12px;background:var(--bg3);border-bottom:1px solid #333;font-size:11.5pt;color:var(--txt3);font-family:var(--aptos);flex-shrink:0;gap:8px;}
+
+  /* ═══ 1. Frosted glass sync bar ═══ */
+  .sync-bar{display:flex;align-items:center;justify-content:space-between;padding:4px 12px;background:rgba(26,26,26,0.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,0.06);font-size:11.5pt;color:var(--txt3);font-family:var(--aptos);flex-shrink:0;gap:8px;}
+
+  /* ═══ 2. Row entry animation ═══ */
+  @keyframes rowFadeIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+  tr.row-new{animation:rowFadeIn .18s ease forwards;}
+
+  /* ═══ 3. Column resize cursor ═══ */
+  .col-rh{position:absolute;right:0;top:0;width:6px;height:100%;cursor:col-resize;z-index:5;transition:background .15s;}
+  .col-rh:hover,.col-rh.active{background:var(--green);opacity:.7;}
+  th{position:relative;}
+
+  /* ═══ 4. Skeleton loading ═══ */
+  .skeleton-row td{background:linear-gradient(90deg,var(--bg2) 25%,#333 50%,var(--bg2) 75%);background-size:200% 100%;animation:skeleton-shimmer 1.4s infinite;}
+  @keyframes skeleton-shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+
+  /* ═══ 5. Panel header shrink on scroll ═══ */
+  .panel-header{padding:5px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3);flex-shrink:0;gap:6px;flex-wrap:wrap;transition:padding .2s,min-height .2s;}
+  .panel-header.condensed{padding:2px 8px;}
+  .panel-header.condensed .panel-title{font-size:9.5pt;}
+  .panel-header.condensed .badge{display:none;}
+
+  /* ═══ 6. Row hover action buttons ═══ */
+  .row-actions{position:absolute;right:4px;top:50%;transform:translateY(-50%);display:none;gap:3px;z-index:4;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 3px;}
+  tr:hover .row-actions{display:flex;}
+  .row-action-btn{background:transparent;border:none;cursor:pointer;font-size:9pt;color:var(--txt3);padding:1px 4px;border-radius:3px;font-family:var(--aptos);line-height:1.4;transition:background .12s,color .12s;}
+  .row-action-btn:hover{background:var(--green-bg);color:var(--green-txt);}
+
+  /* ═══ 9. Auto-scroll to new row indicator ═══ */
+  tr.row-new-highlight td{background:rgba(29,158,117,0.12)!important;transition:background 1.2s;}
+
+  /* ═══ 10. Overdue row highlight ═══ */
+  tr.row-overdue td{background:rgba(120,30,30,0.15)!important;}
+  tr.row-overdue:hover td{background:rgba(120,30,30,0.25)!important;}
+
+  /* ═══ 11. Panel stat badges ═══ */
+  .panel-stat{font-size:9pt;color:var(--txt3);font-family:var(--aptos);padding:1px 6px;border-radius:99px;background:var(--bg2);border:1px solid #444;white-space:nowrap;}
+
+  /* ═══ 12. Empty state ═══ */
+  .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:40px 20px;color:var(--txt3);font-family:var(--aptos);font-size:11pt;}
+  .empty-state-icon{font-size:28pt;opacity:.25;}
+  .empty-state-text{opacity:.5;text-align:center;line-height:1.5;}
+  .empty-state-btn{margin-top:4px;font-size:11pt;padding:6px 18px;border-radius:6px;border:1px solid var(--green);background:transparent;color:var(--green-txt);cursor:pointer;font-family:var(--aptos);transition:background .15s;}
+  .empty-state-btn:hover{background:var(--green-bg);}
+
+  /* ═══ 13. Date warning indicator ═══ */
+  .date-warn{font-size:8pt;color:#f0c040;font-family:var(--aptos);display:block;margin-top:2px;}
+
   .disp-ticker{display:flex;gap:0;white-space:nowrap;will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden;transform-style:preserve-3d;}
   .disp-ticker-wrap{flex:1;overflow:hidden;min-width:0;mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);-webkit-mask-image:linear-gradient(to right,transparent 0%,black 6%,black 94%,transparent 100%);}
   @keyframes ticker-scroll{from{transform:translate3d(0,0,0);}to{transform:translate3d(-50%,0,0);}}
@@ -67,7 +115,7 @@
   .h-divider:hover,.h-divider.active{background:var(--green);}
   .v-divider::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:1px;height:24px;background:#666;border-radius:1px;}
   .h-divider::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);height:1px;width:24px;background:#666;border-radius:1px;}
-  .panel-header{padding:5px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3);flex-shrink:0;gap:6px;flex-wrap:wrap;}
+
   .panel-title{font-size:11pt;font-weight:500;color:var(--txt);font-family:var(--aptos);}
   .panel-actions{display:flex;gap:4px;align-items:center;flex-wrap:wrap;}
   .badge{font-size:11.5pt;padding:1px 7px;border-radius:99px;background:var(--bg2);border:1px solid var(--border);color:var(--txt2);font-family:var(--aptos);}
@@ -286,6 +334,7 @@
           <span class="panel-title">IMM</span>
           <span class="badge" id="imm-count">3 rows</span>
           <span class="badge badge-del" id="imm-dbadge" style="display:none"></span>
+          <span class="panel-stat" id="imm-stat"></span>
         </div>
         <div class="panel-actions">
           <button class="btn btn-r" id="imm-rbtn" onclick="restoreAll('imm')" style="display:none">Restore</button>
@@ -575,6 +624,7 @@ function initApp() {
   injectColResizeHandles();
   initPanelResizers();
   attachScrollListeners();
+  initPanelHeaderShrink();
   initFirebaseListeners();
   // Collapse all rows to natural height after first render
   requestAnimationFrame(function() {
@@ -613,6 +663,7 @@ function initApp() {
 // ================================================================
 
 function initFirebaseListeners() {
+  IDS.forEach(function(tid){ showSkeletonRows(tid); });
   try {
     // Listen for remote changes
     fbDatabase.ref('qa-tracker/data').on('value', function(snapshot) {
@@ -976,7 +1027,195 @@ function updateTicker() {
   });
 }
 // ================================================================
-var _isCompact = false;
+// ================================================================
+//  FEATURES: ROW ANIMATION, EMPTY STATE, STAT BADGES,
+//            OVERDUE HIGHLIGHT, DATE WARNING, PANEL SHRINK,
+//            ROW HOVER ACTIONS, KEYBOARD NAV, AUTO-SCROLL (#2,4,5,6,9,10,11,12,13)
+// ================================================================
+
+// ── Skeleton loading ───────────────────────────────────────────
+function showSkeletonRows(tid) {
+  var tbody = document.getElementById(tid + '-tbody');
+  if (!tbody || (T[tid] && T[tid].rows.length)) return;
+  var html = '';
+  for (var i = 0; i < 3; i++) {
+    html += '<tr class="skeleton-row"><td colspan="20">&nbsp;</td></tr>';
+  }
+  tbody.innerHTML = html;
+}
+
+// ── Empty state ────────────────────────────────────────────────
+function renderEmptyState(tid) {
+  var wrap = document.getElementById(tid + '-tbody-wrap');
+  if (!wrap) return;
+  var existing = wrap.querySelector('.empty-state');
+  if (!T[tid] || T[tid].rows.length > 0) { if (existing) existing.remove(); return; }
+  if (existing) return;
+  var div = document.createElement('div');
+  div.className = 'empty-state';
+  div.innerHTML = '<div class="empty-state-icon">📋</div>' +
+    '<div class="empty-state-text">No rows yet.<br>Add one to get started.</div>' +
+    '<button class="empty-state-btn" onclick="addRow(\'' + tid + '\')">+ Add Row</button>';
+  wrap.appendChild(div);
+}
+
+// ── Panel stat badge ───────────────────────────────────────────
+function updatePanelStat(tid) {
+  var el = document.getElementById(tid + '-stat');
+  if (!el || !T[tid]) return;
+  var active = T[tid].rows.length;
+  var disp   = T[tid].deleted.length;
+  el.textContent = active + ' active' + (disp ? ' · ' + disp + ' disp.' : '');
+  el.style.display = (active || disp) ? 'inline-block' : 'none';
+}
+
+// ── Overdue row highlight ──────────────────────────────────────
+function applyOverdueHighlight(tid) {
+  var tbody = document.getElementById(tid + '-tbody');
+  if (!tbody || !T[tid]) return;
+  T[tid].rows.forEach(function(row) {
+    var tr = tbody.querySelector('tr[data-id="' + row.id + '"]');
+    if (!tr) return;
+    var overdue = false;
+    if (row.dateManufactured && !row.reviewCompleteDate) {
+      var offset = tid === 'prompt' ? 18 : 6;
+      var base   = parseLocalDate(row.dateManufactured);
+      if (base) {
+        var exp = new Date(base.getTime() + offset * 86400000);
+        exp.setHours(0,0,0,0);
+        var now = new Date(); now.setHours(0,0,0,0);
+        overdue = exp < now;
+      }
+    }
+    tr.classList.toggle('row-overdue', overdue);
+  });
+}
+
+// ── Date format warning ────────────────────────────────────────
+function applyDateWarnings(tid) {
+  var wrap = document.getElementById(tid + '-tbody-wrap');
+  if (!wrap) return;
+  wrap.querySelectorAll('input.di:not(.date-hidden)').forEach(function(inp) {
+    var val = inp.value.trim();
+    var parent = inp.closest('td');
+    if (!parent) return;
+    var existing = parent.querySelector('.date-warn');
+    if (!val) { if (existing) existing.remove(); inp.style.borderBottom = ''; return; }
+    if (!parseLocalDate(val)) {
+      if (!existing) {
+        var span = document.createElement('span');
+        span.className = 'date-warn';
+        span.textContent = '⚠ Unrecognized format';
+        parent.appendChild(span);
+      }
+      inp.style.borderBottom = '1px solid #f0c040';
+    } else {
+      if (existing) existing.remove();
+      inp.style.borderBottom = '';
+    }
+  });
+}
+
+// ── Row hover inline actions ───────────────────────────────────
+function injectRowHoverActions(tid) {
+  var tbody = document.getElementById(tid + '-tbody');
+  if (!tbody) return;
+  tbody.querySelectorAll('tr[data-id]').forEach(function(tr) {
+    var rowId = parseInt(tr.dataset.id);
+    var cnCell = tr.querySelector('td.cn');
+    if (!cnCell || cnCell.querySelector('.row-actions')) return;
+    var div = document.createElement('div');
+    div.className = 'row-actions';
+    div.innerHTML =
+      '<button class="row-action-btn" onclick="dispositionRow(event,\'' + tid + '\',' + rowId + ')" title="Disposition">📥</button>' +
+      '<button class="row-action-btn" onclick="duplicateRow(event,\'' + tid + '\',' + rowId + ')" title="Duplicate">⧉</button>';
+    cnCell.style.position = 'relative';
+    cnCell.appendChild(div);
+  });
+}
+
+function dispositionRow(e, tid, rowId) {
+  e.stopPropagation();
+  var r = T[tid].rows.find(function(r){ return r.id === rowId; });
+  if (!r) return;
+  r.done = true;
+  deleteChecked(tid);
+}
+
+function duplicateRow(e, tid, rowId) {
+  e.stopPropagation();
+  pushUndoState();
+  var s = T[tid];
+  var r = s.rows.find(function(r){ return r.id === rowId; });
+  if (!r) return;
+  var copy = JSON.parse(JSON.stringify(r));
+  copy.id = s.nextId++;
+  copy.done = false;
+  copy._cellMeta = {};
+  delete copy._dispositionedAt;
+  var idx = s.rows.indexOf(r);
+  s.rows.splice(idx + 1, 0, copy);
+  scheduleRender(tid);
+  scheduleSave();
+  setTimeout(function() {
+    var newTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + copy.id + '"]');
+    if (newTr) {
+      newTr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      newTr.classList.add('row-new-highlight');
+      setTimeout(function(){ newTr.classList.remove('row-new-highlight'); }, 1400);
+    }
+  }, 80);
+}
+
+// ── Panel header shrink on scroll ─────────────────────────────
+function initPanelHeaderShrink() {
+  IDS.forEach(function(tid) {
+    var tbodyWrap = document.getElementById(tid + '-tbody-wrap');
+    var panel = tbodyWrap && (tbodyWrap.closest('.left-panel') || tbodyWrap.closest('.right-section'));
+    var ph = panel && panel.querySelector('.panel-header');
+    if (!tbodyWrap || !ph) return;
+    tbodyWrap.addEventListener('scroll', function() {
+      ph.classList.toggle('condensed', tbodyWrap.scrollTop > 30);
+    }, { passive: true });
+  });
+}
+
+// ── Auto-scroll and animate new row ───────────────────────────
+function scrollToNewRow(tid, rowId) {
+  requestAnimationFrame(function() {
+    var tr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]');
+    if (tr) {
+      tr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      tr.classList.add('row-new', 'row-new-highlight');
+      setTimeout(function(){ tr.classList.remove('row-new'); }, 220);
+      setTimeout(function(){ tr.classList.remove('row-new-highlight'); }, 1500);
+    }
+  });
+}
+
+// ── Arrow key row navigation ───────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  var active = document.activeElement;
+  if (!active || !active.closest('[contenteditable], input.di')) return;
+  var row = active.closest('tr');
+  if (!row) return;
+  e.preventDefault();
+  var tbody = row.closest('tbody');
+  var rows  = Array.from(tbody.querySelectorAll('tr[data-id]'));
+  var rIdx  = rows.indexOf(row);
+  var next  = rows[e.key === 'ArrowDown' ? rIdx + 1 : rIdx - 1];
+  if (!next) return;
+  var colIdx = Array.from(row.querySelectorAll('td')).indexOf(active.closest('td'));
+  var tds    = next.querySelectorAll('td');
+  if (colIdx >= 0 && tds[colIdx]) {
+    var inp = tds[colIdx].querySelector('[contenteditable], input.di:not(.date-hidden)');
+    if (inp) { inp.focus(); if (inp.select) inp.select(); }
+  }
+});
+
+// ================================================================
+//  FEATURE: COMPACT / COMFORTABLE TOGGLE (#13)
 function toggleCompact() {
   _isCompact = !_isCompact;
   document.body.classList.toggle('compact', _isCompact);
@@ -1953,6 +2192,11 @@ function render(tid, remoteIds) {
     syncCalcRowHeights(tid);
     hookDateInputs(tid);
     updateTicker();
+    renderEmptyState(tid);
+    updatePanelStat(tid);
+    applyOverdueHighlight(tid);
+    injectRowHoverActions(tid);
+    requestAnimationFrame(function(){ applyDateWarnings(tid); });
   });
 }
 
@@ -2074,8 +2318,11 @@ function restoreAll(tid) {
 }
 function addRow(tid) {
   var s = T[tid];
-  s.rows.push(mkRow(s.nextId++));
-  render(tid); scheduleSave();
+  var newId = s.nextId++;
+  s.rows.push(mkRow(newId));
+  scheduleRender(tid);
+  scheduleSave();
+  setTimeout(function(){ scrollToNewRow(tid, newId); }, 60);
 }
 function upd(tid, id, field, value) {
   var s = T[tid];
