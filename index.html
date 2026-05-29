@@ -1683,18 +1683,25 @@ function syncPicker(hiddenId, textId, tid, rowId, field) {
   upd(tid, rowId, field, formatted);
 }
 
+// Normalize a Date to midnight local time for pure calendar day math
+function midnightLocal(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 function dBetween(a, b) {
   var d1 = parseLocalDate(a), d2 = parseLocalDate(b);
   if (!d1 || !d2) return null;
-  return Math.round((d2 - d1) / 86400000);
+  // Normalize both to midnight so only calendar days are counted
+  var ms = midnightLocal(d2) - midnightLocal(d1);
+  return Math.floor(ms / 86400000);
 }
 
 function dSince(a) {
   var d1 = parseLocalDate(a);
   if (!d1) return null;
-  var n = new Date();
-  var today = new Date(n.getFullYear(), n.getMonth(), n.getDate());
-  return Math.round((today - d1) / 86400000);
+  var today = midnightLocal(new Date());
+  var ms = today - midnightLocal(d1);
+  return Math.floor(ms / 86400000);
 }
 
 function esc(s) {
@@ -2029,13 +2036,12 @@ function calcRowHTML(tid, row, isDel) {
   if (row.dateManufactured) {
     var prDate = parseLocalDate(row.dateManufactured);
     if (prDate) {
-      var expDate = new Date(prDate.getTime() + dispOffset * 86400000);
-      var em = expDate.getMonth()+1, ed = expDate.getDate(), ey = expDate.getFullYear();
+      var expDate  = new Date(prDate.getTime() + dispOffset * 86400000);
+      var expMid   = midnightLocal(expDate);
+      var todayMid = midnightLocal(new Date());
+      var daysLeft = Math.floor((expMid - todayMid) / 86400000);
+      var em = expMid.getMonth()+1, ed = expMid.getDate(), ey = expMid.getFullYear();
       var expStr = (em<10?'0'+em:em) + '/' + (ed<10?'0'+ed:ed) + '/' + ey;
-      // Counter: days from today to expected disposition date
-      var today = new Date(); today.setHours(0,0,0,0);
-      expDate.setHours(0,0,0,0);
-      var daysLeft = Math.round((expDate - today) / 86400000);
       var counterCls = daysLeft < 0 ? 'expired' : (daysLeft <= 3 ? 'warn' : 'ok');
       var counterTxt = daysLeft < 0 ? Math.abs(daysLeft) + 'd overdue' : daysLeft + 'd remaining';
       dispCell = '<td class="ca"><div style="text-align:center;">' +
