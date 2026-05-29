@@ -965,14 +965,30 @@ function updateTicker() {
       var pos   = 0;
       var last  = null;
 
+      // Pause ticker while any panel is being scrolled
+      var _tickerPaused = false;
+      var _tickerResumeTimer = null;
+      function pauseTicker() {
+        _tickerPaused = true;
+        clearTimeout(_tickerResumeTimer);
+        _tickerResumeTimer = setTimeout(function() { _tickerPaused = false; last = null; }, 150);
+      }
+      IDS.forEach(function(tid) {
+        var tw = dom(tid + '-tbody-wrap');
+        var cb = dom(tid + '-calc-body');
+        if (tw) tw.addEventListener('scroll', pauseTicker, { passive: true });
+        if (cb) cb.addEventListener('scroll', pauseTicker, { passive: true });
+      });
+
       function step(ts) {
+        wrap._tickerRAF = requestAnimationFrame(step);
+        if (_tickerPaused) return;
         if (last === null) last = ts;
         var delta = (ts - last) / 1000;
         last = ts;
         pos += speed * delta;
         if (pos >= contentW) pos -= contentW;
         ticker.style.transform = 'translate3d(' + (-pos).toFixed(3) + 'px,0,0)';
-        wrap._tickerRAF = requestAnimationFrame(step);
       }
       wrap._tickerRAF = requestAnimationFrame(step);
     });
