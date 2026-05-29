@@ -59,11 +59,7 @@
   .skeleton-row td{background:linear-gradient(90deg,var(--bg2) 25%,#333 50%,var(--bg2) 75%);background-size:200% 100%;animation:skeleton-shimmer 1.4s infinite;}
   @keyframes skeleton-shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
 
-  /* ═══ 5. Panel header shrink on scroll ═══ */
-  .panel-header{padding:5px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3);flex-shrink:0;gap:6px;flex-wrap:wrap;transition:padding .2s,min-height .2s;}
-  .panel-header.condensed{padding:2px 8px;}
-  .panel-header.condensed .panel-title{font-size:9.5pt;}
-  .panel-header.condensed .badge{display:none;}
+  .panel-header{padding:5px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3);flex-shrink:0;gap:6px;flex-wrap:wrap;}
 
   /* ═══ 6. Row hover action buttons ═══ */
   .row-actions{position:absolute;right:4px;bottom:3px;display:none;gap:3px;z-index:4;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 3px;}
@@ -653,7 +649,6 @@ function initApp() {
   injectColResizeHandles();
   initPanelResizers();
   attachScrollListeners();
-  initPanelHeaderShrink();
   initFirebaseListeners();
   // Sync row heights once after first render
   requestAnimationFrame(function() {
