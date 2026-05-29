@@ -714,6 +714,10 @@ function applyRemote(payload) {
     render(tid, changedIds);
   });
   document.getElementById('sync-time').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  // Refresh chart if a chart tab is open
+  if (typeof _activeTab !== 'undefined' && _activeTab !== 'tracker') {
+    requestAnimationFrame(function(){ renderCharts(_activeTab); });
+  }
 }
 
 function scheduleSave() {
@@ -1108,7 +1112,50 @@ function renderCharts(tid) {
   var s = T[tid];
   var allRows = (s.rows || []).concat(s.deleted || []);
 
-  // Collect turnaround metrics
+  // ── Time-series data: cumulative dispositions ─────────────────
+  var dispByDate = {};
+  (s.deleted || []).forEach(function(r) {
+    if (r._dispositionedAt) {
+      dispByDate[r._dispositionedAt] = (dispByDate[r._dispositionedAt] || 0) + 1;
+    }
+  });
+  var dispDates = Object.keys(dispByDate).sort(function(a,b) {
+    var da = parseLocalDate(a), db = parseLocalDate(b);
+    return da && db ? da - db : 0;
+  });
+  var cumulative = 0;
+  var cumLabels  = [];
+  var cumData    = [];
+  dispDates.forEach(function(d) {
+    cumulative += dispByDate[d];
+    cumLabels.push(d);
+    cumData.push(cumulative);
+  });
+
+  // ── Time-series data: rolling avg turnaround ─────────────────
+  var taPoints = []; // { date, value } sorted by dispositionedAt
+  (s.deleted || []).forEach(function(r) {
+    if (!r._dispositionedAt) return;
+    var v;
+    if (tid === 'imm') v = dBetween(r.prInitialReview, r.dateQAReturned);
+    else v = dBetween(r.dateManufactured, r.dateReturned);
+    if (v !== null && v >= 0) taPoints.push({ date: r._dispositionedAt, val: v });
+  });
+  taPoints.sort(function(a,b) {
+    var da = parseLocalDate(a.date), db = parseLocalDate(b.date);
+    return da && db ? da - db : 0;
+  });
+  var WIN = 5; // 5-row rolling window
+  var taLabels = [], taRaw = [], taRolling = [];
+  taPoints.forEach(function(pt, i) {
+    taLabels.push(pt.date);
+    taRaw.push(pt.val);
+    var start = Math.max(0, i - WIN + 1);
+    var slice = taPoints.slice(start, i+1).map(function(p){ return p.val; });
+    taRolling.push(Math.round(slice.reduce(function(a,b){return a+b;},0)/slice.length * 10)/10);
+  });
+
+  // Collect turnaround metrics for histograms
   var prReview = [], qaReview = [], qcReview = [], corrDays = [], dispDays = [];
   allRows.forEach(function(r) {
     var v;
@@ -1185,6 +1232,16 @@ function renderCharts(tid) {
     '<div class="chart-card-sub">Days from Date PR Ended to Dispositioned</div>' +
     '<div class="chart-canvas-wrap" style="height:180px"><canvas id="chart-' + tid + '-disp"></canvas></div></div>';
 
+  // Line chart: cumulative dispositions over time
+  html += '<div class="chart-card"><div class="chart-card-title">Cumulative Dispositions Over Time</div>' +
+    '<div class="chart-card-sub">Total rows dispositioned by date — updates live</div>' +
+    '<div class="chart-canvas-wrap" style="height:220px"><canvas id="chart-' + tid + '-cumul"></canvas></div></div>';
+
+  // Line chart: rolling average turnaround
+  html += '<div class="chart-card"><div class="chart-card-title">PR Review Length Trend</div>' +
+    '<div class="chart-card-sub">Per-row value with ' + WIN + '-row rolling average</div>' +
+    '<div class="chart-canvas-wrap" style="height:220px"><canvas id="chart-' + tid + '-trend"></canvas></div></div>';
+
   container.innerHTML = html;
 
   // ── Render charts ────────────────────────────────────────────
@@ -1202,6 +1259,55 @@ function renderCharts(tid) {
       makeChart('chart-' + tid + '-qc', 'bar', bQC.labels,   [{ label:'Rows', data:bQC.data,   backgroundColor:CHART_COLORS.bar3 }]);
     makeChart('chart-' + tid + '-corr', 'bar', bCorr.labels, [{ label:'Rows', data:bCorr.data, backgroundColor:CHART_COLORS.bar3 }]);
     makeChart('chart-' + tid + '-disp', 'bar', bDisp.labels, [{ label:'Rows', data:bDisp.data, backgroundColor:CHART_COLORS.bar  }]);
+
+    // Line chart: cumulative dispositions
+    if (cumLabels.length) {
+      makeChart('chart-' + tid + '-cumul', 'line', cumLabels, [{
+        label: 'Total Dispositioned',
+        data: cumData,
+        borderColor: CHART_COLORS.line,
+        backgroundColor: 'rgba(78,207,160,0.1)',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        fill: true,
+        tension: 0.3
+      }], { plugins: { legend: { display: false } } });
+    } else {
+      var el = document.getElementById('chart-' + tid + '-cumul');
+      if (el) el.closest('.chart-card').querySelector('.chart-canvas-wrap').innerHTML =
+        '<div class="chart-empty">No dispositioned rows yet.</div>';
+    }
+
+    // Line chart: rolling turnaround trend
+    if (taLabels.length) {
+      makeChart('chart-' + tid + '-trend', 'line', taLabels, [
+        {
+          label: 'PR Review (days)',
+          data: taRaw,
+          borderColor: 'rgba(100,160,220,0.4)',
+          backgroundColor: 'transparent',
+          borderWidth: 1,
+          pointRadius: 2,
+          tension: 0,
+          order: 2
+        },
+        {
+          label: WIN + '-row avg',
+          data: taRolling,
+          borderColor: CHART_COLORS.bar3,
+          backgroundColor: 'transparent',
+          borderWidth: 2.5,
+          pointRadius: 0,
+          tension: 0.4,
+          order: 1
+        }
+      ]);
+    } else {
+      var el2 = document.getElementById('chart-' + tid + '-trend');
+      if (el2) el2.closest('.chart-card').querySelector('.chart-canvas-wrap').innerHTML =
+        '<div class="chart-empty">No dispositioned rows with PR review dates yet.</div>';
+    }
   });
 }
 //            OVERDUE HIGHLIGHT, DATE WARNING, PANEL SHRINK,
