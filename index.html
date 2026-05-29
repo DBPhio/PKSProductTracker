@@ -655,35 +655,9 @@ function initApp() {
   attachScrollListeners();
   initPanelHeaderShrink();
   initFirebaseListeners();
-  // Collapse all rows to natural height after first render
+  // Sync row heights once after first render
   requestAnimationFrame(function() {
     IDS.forEach(function(tid) { syncCalcRowHeights(tid); });
-  });
-
-  // Watch for DOM changes and keep rows in sync — debounced so typing doesn't shake the layout
-  IDS.forEach(function(tid) {
-    var mainTbody = document.getElementById(tid + '-tbody');
-    var calcTbody = document.getElementById(tid + '-calc-tbody');
-    if (mainTbody && calcTbody && window.MutationObserver) {
-      var debounceTimer = null;
-      var obs = new MutationObserver(function(mutations) {
-        // Skip mutations caused by typing inside contenteditable cells
-        var isTyping = mutations.every(function(m) {
-          return m.type === 'childList' && m.target.isContentEditable;
-        });
-        if (isTyping) return;
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(function(){ syncCalcRowHeights(tid); }, 100);
-      });
-      var cfg = { childList: true, subtree: true };
-      obs.observe(mainTbody, cfg);
-      obs.observe(calcTbody, cfg);
-    }
-  });
-
-  // Re-sync on window resize
-  window.addEventListener('resize', function() {
-    IDS.forEach(function(tid){ syncCalcRowHeights(tid); });
   });
 }
 
@@ -1822,32 +1796,25 @@ function syncCalcRowHeights(tid) {
     var calcRows = document.querySelectorAll('#' + tid + '-calc-tbody tr');
     var len = Math.min(mainRows.length, calcRows.length);
     if (!len) return;
-    // WRITE: clear locks on misaligned rows only
-    var needsUpdate = [];
+
+    // Phase 1: collect all mismatched rows (READ only — no writes)
+    var toFix = [];
     for (var i = 0; i < len; i++) {
-      var mh = mainRows[i].getBoundingClientRect().height; // READ
-      var ch = calcRows[i].getBoundingClientRect().height; // READ
+      var mh = mainRows[i].getBoundingClientRect().height;
+      var ch = calcRows[i].getBoundingClientRect().height;
       if (Math.abs(mh - ch) > 1) {
-        needsUpdate.push({ main: mainRows[i], calc: calcRows[i] });
-        mainRows[i].style.height = ''; // WRITE batch 1
-        calcRows[i].style.height = ''; // WRITE batch 1
+        toFix.push({ main: mainRows[i], calc: calcRows[i], mh: mh, ch: ch });
       }
     }
-    if (!needsUpdate.length) return;
-    // READ natural heights, then WRITE locks — all in one rAF
-    requestAnimationFrame(function() {
-      needsUpdate.forEach(function(pair) {
-        var mh = pair.main.getBoundingClientRect().height; // READ
-        var ch = pair.calc.getBoundingClientRect().height; // READ
-        var h  = Math.ceil(Math.max(mh, ch));
-        if (h > 0) {
-          pair.main.style.height = h + 'px'; // WRITE
-          pair.calc.style.height = h + 'px'; // WRITE
-        }
-      });
-      var mw = dom(tid + '-tbody-wrap');
-      var cb = dom(tid + '-calc-body');
-      if (mw && cb && Math.abs(cb.scrollTop - mw.scrollTop) > 1) cb.scrollTop = mw.scrollTop;
+    if (!toFix.length) return;
+
+    // Phase 2: WRITE — lock mismatched rows to max height
+    toFix.forEach(function(pair) {
+      var h = Math.ceil(Math.max(pair.mh, pair.ch));
+      if (h > 0) {
+        pair.main.style.height = h + 'px';
+        pair.calc.style.height = h + 'px';
+      }
     });
   });
 }
