@@ -1449,12 +1449,7 @@ function duplicateRow(e, tid, rowId) {
   scheduleRender(tid);
   scheduleSave();
   setTimeout(function() {
-    var newTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + copy.id + '"]');
-    if (newTr) {
-      newTr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      newTr.classList.add('row-new-highlight');
-      setTimeout(function(){ newTr.classList.remove('row-new-highlight'); }, 1400);
-    }
+    scrollToNewRow(tid, copy.id);
   }, 80);
 }
 
@@ -1473,14 +1468,32 @@ function initPanelHeaderShrink() {
 
 // ── Auto-scroll and animate new row ───────────────────────────
 function scrollToNewRow(tid, rowId) {
+  // Wait two frames — render + paint
   requestAnimationFrame(function() {
-    var tr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]');
-    if (tr) {
-      tr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      tr.classList.add('row-new', 'row-new-highlight');
-      setTimeout(function(){ tr.classList.remove('row-new'); }, 220);
-      setTimeout(function(){ tr.classList.remove('row-new-highlight'); }, 1500);
-    }
+    requestAnimationFrame(function() {
+      var wrap = dom(tid + '-tbody-wrap');
+      var tr   = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]');
+      if (!wrap || !tr) return;
+
+      var wrapTop    = wrap.getBoundingClientRect().top;
+      var trTop      = tr.getBoundingClientRect().top;
+      var trHeight   = tr.getBoundingClientRect().height;
+      var wrapHeight = wrap.getBoundingClientRect().height;
+
+      // Calculate the scrollTop needed to show the row at the bottom of the viewport
+      var targetScroll = wrap.scrollTop + (trTop - wrapTop) - wrapHeight + trHeight + 8;
+
+      // Smooth scroll the container directly
+      wrap.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+
+      // Also sync the calc panel
+      var cb = dom(tid + '-calc-body');
+      if (cb) cb.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+
+      // Flash highlight
+      tr.classList.add('row-new-highlight');
+      setTimeout(function(){ tr.classList.remove('row-new-highlight'); }, 1400);
+    });
   });
 }
 
@@ -2597,7 +2610,7 @@ function addRow(tid) {
   s.rows.push(mkRow(newId));
   scheduleRender(tid);
   scheduleSave();
-  setTimeout(function(){ scrollToNewRow(tid, newId); }, 60);
+  setTimeout(function(){ scrollToNewRow(tid, newId); }, 120);
 }
 function upd(tid, id, field, value) {
   var s = T[tid];
