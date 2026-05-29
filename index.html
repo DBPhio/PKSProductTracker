@@ -1010,18 +1010,18 @@ function updateTicker() {
       // Cancel any existing loop
       if (wrap._tickerRAF) cancelAnimationFrame(wrap._tickerRAF);
 
-      var speed = 40; // px per second — adjust for feel
+      var speed = 22; // px per second
       var pos   = 0;
       var last  = null;
 
       function step(ts) {
         wrap._tickerRAF = requestAnimationFrame(step);
         if (last === null) last = ts;
-        var delta = (ts - last) / 1000;
+        var delta = Math.min((ts - last) / 1000, 0.05); // clamp to 50ms max to avoid jumps
         last = ts;
         pos += speed * delta;
         if (pos >= contentW) pos -= contentW;
-        ticker.style.transform = 'translate3d(' + (-pos).toFixed(3) + 'px,0,0)';
+        ticker.style.transform = 'translate3d(' + (-pos).toFixed(4) + 'px,0,0)';
       }
       wrap._tickerRAF = requestAnimationFrame(step);
     });
