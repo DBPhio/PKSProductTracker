@@ -125,14 +125,14 @@
   .thead-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;height:100%;}
   .thead-wrap::-webkit-scrollbar{width:6px;height:0;background:transparent;}
   .thead-wrap::-webkit-scrollbar-thumb{background:transparent;}
-  .tbody-wrap{flex:1;overflow-x:auto;overflow-y:scroll;border:1px solid var(--border);border-top:none;background:var(--bg);max-width:100%;will-change:scroll-position;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+  .tbody-wrap{flex:1;overflow-x:auto;overflow-y:scroll;border:1px solid var(--border);border-top:none;background:var(--bg);max-width:100%;will-change:scroll-position;overscroll-behavior:contain;}
   .tbody-wrap::-webkit-scrollbar{width:6px;height:6px;}
   .tbody-wrap::-webkit-scrollbar-track{background:transparent;}
   .tbody-wrap::-webkit-scrollbar-thumb{background:#555;border-radius:4px;}
   .tbody-wrap::-webkit-scrollbar-thumb:hover{background:#777;}
   .tbody-wrap::-webkit-scrollbar-corner{background:transparent;}
   .tbody-wrap table{font-size:var(--fs);font-family:var(--aptos);table-layout:fixed;border-collapse:collapse;}
-  .calc-body-wrap{flex:1;overflow:auto;scrollbar-width:none;will-change:scroll-position;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+  .calc-body-wrap{flex:1;overflow:auto;scrollbar-width:none;will-change:scroll-position;overscroll-behavior:contain;}
   tbody tr{}
   .panel-scroll-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;max-width:100%;}
   th{padding:5px 6px;text-align:center;font-weight:500;font-size:10pt;color:var(--txt2);border:var(--grid);white-space:normal;word-break:break-word;vertical-align:middle;overflow:hidden;position:relative;font-family:var(--aptos);line-height:1.3;background:var(--hdr);}
@@ -1887,15 +1887,39 @@ function attachScrollListeners() {
     var tbodyWrap = dom(tid + '-tbody-wrap');
     var calcBody  = dom(tid + '-calc-body');
     var theadWrap = dom(tid + '-thead-wrap');
+
     if (tbodyWrap) {
-      tbodyWrap.addEventListener('wheel', function() { markWheelScrolling(tid); }, { passive: true });
+      // Custom wheel handler — multiplier makes scroll feel snappier
+      tbodyWrap.addEventListener('wheel', function(e) {
+        if (e.deltaY === 0) return;
+        e.preventDefault();
+        var delta = e.deltaMode === 1 ? e.deltaY * 28     // line mode
+                  : e.deltaMode === 2 ? e.deltaY * tbodyWrap.clientHeight // page mode
+                  : e.deltaY * 1.4;                        // pixel mode — 1.4x multiplier
+        tbodyWrap.scrollTop += delta;
+        if (calcBody) calcBody.scrollTop = tbodyWrap.scrollTop;
+        if (theadWrap) theadWrap.scrollLeft = tbodyWrap.scrollLeft;
+        markWheelScrolling(tid);
+      }, { passive: false });
+
       tbodyWrap.addEventListener('scroll', function() {
         if (theadWrap) theadWrap.scrollLeft = tbodyWrap.scrollLeft;
         syncCalcVScroll(tid, tbodyWrap);
       }, { passive: true });
     }
+
     if (calcBody) {
-      calcBody.addEventListener('wheel', function() { markWheelScrolling(tid); }, { passive: true });
+      calcBody.addEventListener('wheel', function(e) {
+        if (e.deltaY === 0) return;
+        e.preventDefault();
+        var delta = e.deltaMode === 1 ? e.deltaY * 28
+                  : e.deltaMode === 2 ? e.deltaY * calcBody.clientHeight
+                  : e.deltaY * 1.4;
+        calcBody.scrollTop += delta;
+        if (tbodyWrap) tbodyWrap.scrollTop = calcBody.scrollTop;
+        markWheelScrolling(tid);
+      }, { passive: false });
+
       calcBody.addEventListener('scroll', function() {
         syncMainVScroll(tid, calcBody);
       }, { passive: true });
