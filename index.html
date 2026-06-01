@@ -613,6 +613,9 @@ function showView(state, user) {
   } else if (state === 'authorized') {
     currentUser = user;
     document.getElementById('app').classList.add('unlocked');
+    // Re-broadcast presence now that we have the user's name
+    var pRef = fbDatabase && fbDatabase.ref('qa-tracker/presence/' + MY_ID);
+    if (pRef) pRef.set({ ts: Date.now(), name: currentUser.displayName || currentUser.email, uid: MY_ID });
   }
 }
 
@@ -685,8 +688,10 @@ function initFirebaseListeners() {
 
     // Presence — mark this user active every 8s
     var presRef = fbDatabase.ref('qa-tracker/presence/' + MY_ID);
-    var myName  = currentUser ? (currentUser.displayName || currentUser.email || 'Unknown') : 'Unknown';
-    function markPresent() { presRef.set({ ts: Date.now(), name: myName, uid: MY_ID }); }
+    function markPresent() {
+      var name = currentUser ? (currentUser.displayName || currentUser.email || 'Unknown') : 'Unknown';
+      presRef.set({ ts: Date.now(), name: name, uid: MY_ID });
+    }
     markPresent();
     setInterval(markPresent, 8000);
 
