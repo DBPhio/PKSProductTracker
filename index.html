@@ -173,9 +173,6 @@
 
   /* ── Presence tooltip ── */
   .presence-wrap{position:relative;display:inline-block;cursor:default;}
-  .presence-tooltip{position:fixed;background:var(--bg);border:1px solid var(--green);border-radius:8px;padding:8px 12px;min-width:180px;max-height:300px;overflow-y:auto;box-shadow:0 8px 28px rgba(0,0,0,0.7);z-index:99999;display:none;font-family:var(--aptos);}
-  .presence-wrap:hover .presence-tooltip{display:block;}
-  .presence-tooltip-title{font-size:9pt;color:var(--txt3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
   .presence-user{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10pt;color:var(--txt2);}
   .presence-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
   .presence-you{font-size:8.5pt;color:var(--txt3);}
@@ -323,10 +320,6 @@
       <button class="btn btn-d" onclick="confirmClearAll()" title="Clear all data from all panels">✕ Clear All</button>
       <div class="presence-wrap" id="presence-wrap">
         <span style="color:var(--green-txt);font-size:11.5pt" id="sync-users"></span>
-        <div class="presence-tooltip" id="presence-tooltip">
-          <div class="presence-tooltip-title">Active now</div>
-          <div id="presence-list"></div>
-        </div>
       </div>
       <span style="color:var(--txt3);font-size:11.5pt" id="sync-time"></span>
     </div>
@@ -1062,18 +1055,31 @@ function updateTicker() {
   });
 }
 // ================================================================
-// Position presence tooltip using fixed coords so it's never clipped
+// Presence tooltip — attached to body to escape all stacking contexts
 (function() {
+  var tip = null;
+  function getTip() { return tip || (tip = document.getElementById('presence-tooltip')); }
+
   document.addEventListener('mouseover', function(e) {
     var wrap = e.target.closest('#presence-wrap');
     if (!wrap) return;
-    var tip  = document.getElementById('presence-tooltip');
-    if (!tip) return;
+    var t = getTip();
+    if (!t) return;
     var rect = wrap.getBoundingClientRect();
-    tip.style.top  = (rect.bottom + 6) + 'px';
-    // Keep tooltip on screen horizontally
-    tip.style.right = (window.innerWidth - rect.right) + 'px';
-    tip.style.left  = 'auto';
+    t.style.top   = (rect.bottom + 6) + 'px';
+    t.style.right = (window.innerWidth - rect.right) + 'px';
+    t.style.left  = 'auto';
+    t.style.display = 'block';
+  });
+
+  document.addEventListener('mouseout', function(e) {
+    var wrap = e.target.closest('#presence-wrap');
+    if (!wrap) return;
+    // Only hide if leaving the wrap (not entering a child)
+    var related = e.relatedTarget;
+    if (related && wrap.contains(related)) return;
+    var t = getTip();
+    if (t) t.style.display = 'none';
   });
 })();
 
@@ -3005,5 +3011,10 @@ document.addEventListener('mouseup', function(e) {
   }, 10);
 });
 </script>
+  <!-- Presence tooltip — must be direct child of body to escape stacking contexts -->
+  <div id="presence-tooltip" style="display:none;position:fixed;z-index:2147483647;background:var(--bg);border:1px solid var(--green);border-radius:8px;padding:8px 12px;min-width:180px;max-height:300px;overflow-y:auto;box-shadow:0 8px 28px rgba(0,0,0,0.8);font-family:'Aptos Narrow','Barlow Condensed',Arial Narrow,sans-serif;">
+    <div style="font-size:9pt;color:#888;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Active now</div>
+    <div id="presence-list"></div>
+  </div>
 </body>
 </html>
