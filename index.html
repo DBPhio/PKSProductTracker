@@ -173,7 +173,7 @@
 
   /* ── Presence tooltip ── */
   .presence-wrap{position:relative;display:inline-block;cursor:default;}
-  .presence-tooltip{position:absolute;right:0;top:calc(100% + 6px);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;min-width:160px;box-shadow:0 6px 20px rgba(0,0,0,0.5);z-index:9999;display:none;font-family:var(--aptos);}
+  .presence-tooltip{position:fixed;background:var(--bg);border:1px solid var(--green);border-radius:8px;padding:8px 12px;min-width:180px;max-height:300px;overflow-y:auto;box-shadow:0 8px 28px rgba(0,0,0,0.7);z-index:99999;display:none;font-family:var(--aptos);}
   .presence-wrap:hover .presence-tooltip{display:block;}
   .presence-tooltip-title{font-size:9pt;color:var(--txt3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
   .presence-user{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10pt;color:var(--txt2);}
@@ -321,7 +321,7 @@
     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
       <button class="view-toggle-btn" id="compact-btn" onclick="toggleCompact()" title="Toggle compact/comfortable row height">⇕ Compact</button>
       <button class="btn btn-d" onclick="confirmClearAll()" title="Clear all data from all panels">✕ Clear All</button>
-      <div class="presence-wrap">
+      <div class="presence-wrap" id="presence-wrap">
         <span style="color:var(--green-txt);font-size:11.5pt" id="sync-users"></span>
         <div class="presence-tooltip" id="presence-tooltip">
           <div class="presence-tooltip-title">Active now</div>
@@ -1062,6 +1062,21 @@ function updateTicker() {
   });
 }
 // ================================================================
+// Position presence tooltip using fixed coords so it's never clipped
+(function() {
+  document.addEventListener('mouseover', function(e) {
+    var wrap = e.target.closest('#presence-wrap');
+    if (!wrap) return;
+    var tip  = document.getElementById('presence-tooltip');
+    if (!tip) return;
+    var rect = wrap.getBoundingClientRect();
+    tip.style.top  = (rect.bottom + 6) + 'px';
+    // Keep tooltip on screen horizontally
+    tip.style.right = (window.innerWidth - rect.right) + 'px';
+    tip.style.left  = 'auto';
+  });
+})();
+
 // ================================================================
 //  TABS & CHARTS
 // ================================================================
