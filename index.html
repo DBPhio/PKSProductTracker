@@ -1895,7 +1895,7 @@ function attachScrollListeners() {
         e.preventDefault();
         var delta = e.deltaMode === 1 ? e.deltaY * 28     // line mode
                   : e.deltaMode === 2 ? e.deltaY * tbodyWrap.clientHeight // page mode
-                  : e.deltaY * 1.4;                        // pixel mode — 1.4x multiplier
+                  : e.deltaY * 1.2;                        // pixel mode — 1.4x multiplier
         tbodyWrap.scrollTop += delta;
         if (calcBody) calcBody.scrollTop = tbodyWrap.scrollTop;
         if (theadWrap) theadWrap.scrollLeft = tbodyWrap.scrollLeft;
@@ -1914,7 +1914,7 @@ function attachScrollListeners() {
         e.preventDefault();
         var delta = e.deltaMode === 1 ? e.deltaY * 28
                   : e.deltaMode === 2 ? e.deltaY * calcBody.clientHeight
-                  : e.deltaY * 1.4;
+                  : e.deltaY * 1.2;
         calcBody.scrollTop += delta;
         if (tbodyWrap) tbodyWrap.scrollTop = calcBody.scrollTop;
         markWheelScrolling(tid);
