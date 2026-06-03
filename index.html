@@ -2199,7 +2199,7 @@ function rowHTML(tid, row, i, isDel) {
   }).join('');
 
   return (
-    '<td class="cc"><input type="checkbox"' + (row.done ? ' checked' : '') + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'handleRowCheck(event,\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
+    '<td class="cc"><input type="checkbox"' + (isDel ? (T[tid].permSelected.has(row.id) ? ' checked' : '') : (row.done ? ' checked' : '')) + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'handleRowCheck(event,\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
     '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
     cells
   );
@@ -2656,7 +2656,24 @@ function toggleDelRow(tid, id, cb) {
   } else {
     s.permSelected.delete(id);
   }
-  scheduleRender(tid);
+  // Update row highlight directly without full re-render
+  var tr  = document.querySelector('#' + tid + '-tbody tr[data-delid="' + id + '"]');
+  var ctr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + id + '"]');
+  if (tr)  { tr.classList.toggle('del-row-selected', cb.checked);  tr.style.opacity  = cb.checked ? '0.85' : '0.5'; }
+  if (ctr) { ctr.classList.toggle('del-row-selected', cb.checked); ctr.style.opacity = cb.checked ? '0.85' : '0.5'; }
+  // Only re-render the divider row to update the button count
+  var anySelected = s.permSelected.size > 0;
+  var divRow = document.querySelector('#' + tid + '-tbody tr.divrow');
+  if (divRow) {
+    var mainCols = (T[tid].colWidths || []).length - CALC_COL_COUNT[tid];
+    divRow.innerHTML = '<td colspan="' + mainCols + '"><div class="divrow-inner">' +
+      '<span style="font-size:10pt;color:var(--txt3);">Dispositioned (' + s.deleted.length + ')</span>' +
+      (anySelected
+        ? '<button class="btn btn-r" style="font-size:10pt;" onclick="restoreAll(\'' + tid + '\')">Restore ' + s.permSelected.size + ' selected</button>' +
+          '<button class="btn-perm-del" onclick="permDeleteSelected(\'' + tid + '\')">Delete ' + s.permSelected.size + ' permanently</button>'
+        : '') +
+      '</div></td>';
+  }
 }
 function permDeleteSelected(tid) {
   if (!T[tid].permSelected.size) return;
