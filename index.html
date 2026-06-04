@@ -1275,30 +1275,26 @@ function renderCharts(tid) {
     var da=parseLocalDate(a),db=parseLocalDate(b); return da&&db?da-db:0;
   }).forEach(function(d){ cum+=byDate[d]; cumLabels.push(d); cumData.push(cum); });
 
-  // ── ER vs LIR/NCR trend lines ────────────────────────────────
-  var erByDate  = {}, lirByDate = {};
+  // ── ER vs LIR/NCR — monthly count so lines show real trend ──
+  var erMonthly = {}, lirMonthly = {};
   disp.forEach(function(r) {
     if (!r._dispositionedAt) return;
-    var d = r._dispositionedAt;
+    var d = parseLocalDate(r._dispositionedAt);
+    if (!d) return;
+    var key = (d.getMonth()+1) + '/' + d.getFullYear();
     var hasER  = r.erLirNumber  && r.erLirNumber.replace(/<[^>]+>/g,'').trim();
     var hasLIR = r.lirNcrNumber && r.lirNcrNumber.replace(/<[^>]+>/g,'').trim();
-    if (hasER)  erByDate[d]  = (erByDate[d]  || 0) + 1;
-    if (hasLIR) lirByDate[d] = (lirByDate[d] || 0) + 1;
+    if (hasER)  erMonthly[key]  = (erMonthly[key]  || 0) + 1;
+    if (hasLIR) lirMonthly[key] = (lirMonthly[key] || 0) + 1;
   });
-  // Build merged sorted date list
-  var erLirDates = Object.keys(Object.assign({}, erByDate, lirByDate)).sort(function(a,b) {
-    var da = parseLocalDate(a), db = parseLocalDate(b);
-    return da && db ? da - db : 0;
+  // Merge and sort all months
+  var allMonths = Object.keys(Object.assign({}, erMonthly, lirMonthly)).sort(function(a,b) {
+    var pa = a.split('/'), pb = b.split('/');
+    return (parseInt(pa[1])*12+parseInt(pa[0])) - (parseInt(pb[1])*12+parseInt(pb[0]));
   });
-  var erCumLabels = [], erCumData = [], lirCumData = [];
-  var erCum = 0, lirCum = 0;
-  erLirDates.forEach(function(d) {
-    erCum  += erByDate[d]  || 0;
-    lirCum += lirByDate[d] || 0;
-    erCumLabels.push(d);
-    erCumData.push(erCum);
-    lirCumData.push(lirCum);
-  });
+  var erCumLabels = allMonths;
+  var erCumData   = allMonths.map(function(m){ return erMonthly[m]  || 0; });
+  var lirCumData  = allMonths.map(function(m){ return lirMonthly[m] || 0; });
 
   // ── Build HTML ───────────────────────────────────────────────
   var html = '';
@@ -1335,7 +1331,7 @@ function renderCharts(tid) {
 
   // ── ROW 3: ER vs LIR/NCR trend + QC velocity / Scatter ───────
   html += '<div class="chart-row">';
-  html += card(tid+'-erlir', 'ER vs LIR/NCR Over Time', 'Cumulative rows with ER Number (green) vs LIR/NCR Number (blue) by disposition date', '240px');
+  html += card(tid+'-erlir', 'ER vs LIR/NCR Trend', 'Count per month — rising = more being logged, falling = fewer', '240px');
   if (tid !== 'imm') {
     html += card(tid+'-qctrd', 'QC Review Velocity', WIN+'-row rolling avg', '240px');
   } else {
@@ -1398,30 +1394,34 @@ function renderCharts(tid) {
       ]);
     } else if (tid !== 'imm') emptyChart(tid+'-qctrd');
 
-    // ER vs LIR/NCR cumulative lines
+    // ER vs LIR/NCR monthly trend
     if (erCumLabels.length) {
       makeChart('chart-'+tid+'-erlir','line',erCumLabels,[
         {
           label:'ER Number',
           data:erCumData,
           borderColor:CHART_COLORS.line,
-          backgroundColor:'rgba(78,207,160,0.08)',
+          backgroundColor:'transparent',
           borderWidth:2.5,
-          pointRadius:3,
-          fill:true,
+          pointRadius:4,
+          pointHoverRadius:6,
+          fill:false,
           tension:0.3
         },
         {
           label:'LIR/NCR Number',
           data:lirCumData,
           borderColor:CHART_COLORS.bar2,
-          backgroundColor:'rgba(100,160,220,0.08)',
+          backgroundColor:'transparent',
           borderWidth:2.5,
-          pointRadius:3,
-          fill:true,
+          pointRadius:4,
+          pointHoverRadius:6,
+          fill:false,
           tension:0.3
         }
-      ]);
+      ],{
+        scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}
+      });
     } else emptyChart(tid+'-erlir');
 
     // Scatter: review length vs corrections
