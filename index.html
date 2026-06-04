@@ -368,7 +368,7 @@
           <span class="panel-stat" id="imm-stat"></span>
         </div>
         <div class="panel-actions">
-          <button class="btn btn-r" id="imm-rbtn" onclick="restoreAll('imm')" style="display:none">Restore</button>
+          <button class="btn btn-r" id="imm-rbtn" onclick="restoreAll('imm')" style="display:none;font-size:10pt;">Restore <span id="imm-rcount"></span></button><button class="btn-perm-del" id="imm-pdel" onclick="permDeleteSelected('imm')" style="display:none;font-size:10pt;">Delete <span id="imm-pcount"></span> permanently</button>
           <button class="btn btn-d" id="imm-dbtn" onclick="deleteChecked('imm')" style="display:none">Delete</button>
           <button class="btn" onclick="addRow('imm')">+ Row</button>
         </div>
@@ -419,7 +419,7 @@
             <span class="badge badge-del" id="prompt-dbadge" style="display:none"></span>
           </div>
           <div class="panel-actions">
-            <button class="btn btn-r" id="prompt-rbtn" onclick="restoreAll('prompt')" style="display:none">Restore</button>
+            <button class="btn btn-r" id="prompt-rbtn" onclick="restoreAll('prompt')" style="display:none;font-size:10pt;">Restore <span id="prompt-rcount"></span></button><button class="btn-perm-del" id="prompt-pdel" onclick="permDeleteSelected('prompt')" style="display:none;font-size:10pt;">Delete <span id="prompt-pcount"></span> permanently</button>
             <button class="btn btn-d" id="prompt-dbtn" onclick="deleteChecked('prompt')" style="display:none">Delete</button>
             <button class="btn" onclick="addRow('prompt')">+ Row</button>
           </div>
@@ -471,7 +471,7 @@
             <span class="badge badge-del" id="biofire-dbadge" style="display:none"></span>
           </div>
           <div class="panel-actions">
-            <button class="btn btn-r" id="biofire-rbtn" onclick="restoreAll('biofire')" style="display:none">Restore</button>
+            <button class="btn btn-r" id="biofire-rbtn" onclick="restoreAll('biofire')" style="display:none;font-size:10pt;">Restore <span id="biofire-rcount"></span></button><button class="btn-perm-del" id="biofire-pdel" onclick="permDeleteSelected('biofire')" style="display:none;font-size:10pt;">Delete <span id="biofire-pcount"></span> permanently</button>
             <button class="btn btn-d" id="biofire-dbtn" onclick="deleteChecked('biofire')" style="display:none">Delete</button>
             <button class="btn" onclick="addRow('biofire')">+ Row</button>
           </div>
@@ -2553,12 +2553,7 @@ function render(tid, remoteIds) {
     divider.className = 'divrow';
     divider.innerHTML = '<td colspan="' + mainCols + '"><div class="divrow-inner">' +
       '<span>Dispositioned (' + s.deleted.length + ')</span>' +
-      '<div style="display:flex;gap:6px;align-items:center;">' +
-      (anyPermSel
-        ? '<button class="btn btn-r" style="font-size:10pt;" onclick="restoreAll(\'' + tid + '\')">Restore ' + s.permSelected.size + ' selected</button>' +
-          '<button class="btn-perm-del" onclick="permDeleteSelected(\'' + tid + '\')">Delete ' + s.permSelected.size + ' permanently</button>'
-        : '<button class="btn btn-r" style="font-size:10pt;opacity:0.5;" onclick="restoreAll(\'' + tid + '\')" title="Check rows below to restore specific ones, or click to restore all">Restore all</button>') +
-      '</div></div></td>';
+      '</div></td>';
     tbody.appendChild(divider);
     // Calc divider (empty, just matches height)
     if (calcTbody) {
@@ -2604,6 +2599,7 @@ function render(tid, remoteIds) {
     updateTicker();
     renderEmptyState(tid);
     updatePanelStat(tid);
+    updateHeaderRestoreButtons(tid);
     scheduleIdleWork(tid);
   });
 }
@@ -2661,19 +2657,21 @@ function toggleDelRow(tid, id, cb) {
   var ctr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + id + '"]');
   if (tr)  { tr.classList.toggle('del-row-selected', cb.checked);  tr.style.opacity  = cb.checked ? '0.85' : '0.5'; }
   if (ctr) { ctr.classList.toggle('del-row-selected', cb.checked); ctr.style.opacity = cb.checked ? '0.85' : '0.5'; }
-  // Only re-render the divider row to update the button count
-  var anySelected = s.permSelected.size > 0;
-  var divRow = document.querySelector('#' + tid + '-tbody tr.divrow');
-  if (divRow) {
-    var mainCols = (T[tid].colWidths || []).length - CALC_COL_COUNT[tid];
-    divRow.innerHTML = '<td colspan="' + mainCols + '"><div class="divrow-inner">' +
-      '<span style="font-size:10pt;color:var(--txt3);">Dispositioned (' + s.deleted.length + ')</span>' +
-      (anySelected
-        ? '<button class="btn btn-r" style="font-size:10pt;" onclick="restoreAll(\'' + tid + '\')">Restore ' + s.permSelected.size + ' selected</button>' +
-          '<button class="btn-perm-del" onclick="permDeleteSelected(\'' + tid + '\')">Delete ' + s.permSelected.size + ' permanently</button>'
-        : '') +
-      '</div></td>';
-  }
+  // Show/hide restore + delete buttons in panel header
+  updateHeaderRestoreButtons(tid);
+}
+
+function updateHeaderRestoreButtons(tid) {
+  var s       = T[tid];
+  var count   = s.permSelected.size;
+  var rbtn    = document.getElementById(tid + '-rbtn');
+  var pdel    = document.getElementById(tid + '-pdel');
+  var rcount  = document.getElementById(tid + '-rcount');
+  var pcount  = document.getElementById(tid + '-pcount');
+  if (rbtn)   { rbtn.style.display  = count ? 'inline-block' : 'none'; }
+  if (pdel)   { pdel.style.display  = count ? 'inline-block' : 'none'; }
+  if (rcount) rcount.textContent = count ? count + ' selected' : '';
+  if (pcount) pcount.textContent = count ? count : '';
 }
 function permDeleteSelected(tid) {
   if (!T[tid].permSelected.size) return;
@@ -2689,6 +2687,7 @@ function permDeleteSelected(tid) {
     s.permSelected.clear();
     scheduleRender(tid);
     scheduleSave();
+    updateHeaderRestoreButtons(tid);
   }, 300);
 }
 function toggleAll(tid, cb) {
@@ -2739,6 +2738,7 @@ function restoreAll(tid) {
   s.deleted = s.deleted.filter(function(r){ return !restoreIds.has(r.id); });
   s.permSelected.clear();
   scheduleRender(tid); scheduleSave();
+  updateHeaderRestoreButtons(tid);
 }
 function addRow(tid) {
   var s = T[tid];
