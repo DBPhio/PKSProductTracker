@@ -1275,6 +1275,31 @@ function renderCharts(tid) {
     var da=parseLocalDate(a),db=parseLocalDate(b); return da&&db?da-db:0;
   }).forEach(function(d){ cum+=byDate[d]; cumLabels.push(d); cumData.push(cum); });
 
+  // ── ER vs LIR/NCR trend lines ────────────────────────────────
+  var erByDate  = {}, lirByDate = {};
+  disp.forEach(function(r) {
+    if (!r._dispositionedAt) return;
+    var d = r._dispositionedAt;
+    var hasER  = r.erLirNumber  && r.erLirNumber.replace(/<[^>]+>/g,'').trim();
+    var hasLIR = r.lirNcrNumber && r.lirNcrNumber.replace(/<[^>]+>/g,'').trim();
+    if (hasER)  erByDate[d]  = (erByDate[d]  || 0) + 1;
+    if (hasLIR) lirByDate[d] = (lirByDate[d] || 0) + 1;
+  });
+  // Build merged sorted date list
+  var erLirDates = Object.keys(Object.assign({}, erByDate, lirByDate)).sort(function(a,b) {
+    var da = parseLocalDate(a), db = parseLocalDate(b);
+    return da && db ? da - db : 0;
+  });
+  var erCumLabels = [], erCumData = [], lirCumData = [];
+  var erCum = 0, lirCum = 0;
+  erLirDates.forEach(function(d) {
+    erCum  += erByDate[d]  || 0;
+    lirCum += lirByDate[d] || 0;
+    erCumLabels.push(d);
+    erCumData.push(erCum);
+    lirCumData.push(lirCum);
+  });
+
   // ── Build HTML ───────────────────────────────────────────────
   var html = '';
 
@@ -1308,20 +1333,27 @@ function renderCharts(tid) {
   html += card(tid+'-qatrd', 'QA Review Velocity', WIN+'-row rolling avg — is QA review trending up or down?', '240px');
   html += '</div>';
 
-  // ── ROW 3: QC velocity (Prompt/BioFire) + Corrections scatter ─
+  // ── ROW 3: ER vs LIR/NCR trend + QC velocity / Scatter ───────
   html += '<div class="chart-row">';
+  html += card(tid+'-erlir', 'ER vs LIR/NCR Over Time', 'Cumulative rows with ER Number (green) vs LIR/NCR Number (blue) by disposition date', '240px');
   if (tid !== 'imm') {
     html += card(tid+'-qctrd', 'QC Review Velocity', WIN+'-row rolling avg', '240px');
+  } else {
+    html += card(tid+'-scatter', 'Review Length vs Corrections', 'Does longer review correlate with longer corrections?', '240px');
   }
-  html += card(tid+'-scatter', 'Review Length vs Corrections', 'Does longer review correlate with longer corrections?', '240px');
   html += '</div>';
 
-  // ── ROW 4: Disposition lag ────────────────────────────────────
-  html += '<div class="chart-card">';
-  html += '<div class="chart-card-title">Disposition Lag</div>';
-  html += '<div class="chart-card-sub">Days over/under the expected disposition date per row (negative = early, positive = late)</div>';
-  html += '<div class="chart-canvas-wrap" style="height:220px"><canvas id="chart-' + tid + '-lag"></canvas></div>';
-  html += '</div>';
+  // ── ROW 4: Scatter (Prompt/BioFire) + Disposition Lag ────────
+  if (tid !== 'imm') {
+    html += '<div class="chart-row">';
+    html += card(tid+'-scatter', 'Review Length vs Corrections', 'Does longer review correlate with longer corrections?', '240px');
+    html += card(tid+'-lag', 'Disposition Lag', 'Days over/under expected — negative = early (green), positive = late (red)', '240px');
+    html += '</div>';
+  } else {
+    html += '<div class="chart-card"><div class="chart-card-title">Disposition Lag</div>' +
+      '<div class="chart-card-sub">Days over/under expected — negative = early (green), positive = late (red)</div>' +
+      '<div class="chart-canvas-wrap" style="height:220px"><canvas id="chart-' + tid + '-lag"></canvas></div></div>';
+  }
 
   container.innerHTML = html;
 
@@ -1365,6 +1397,32 @@ function renderCharts(tid) {
         {label:WIN+'-row avg',data:qcTrend.rolling,borderColor:CHART_COLORS.bar3,backgroundColor:'transparent',borderWidth:2.5,pointRadius:0,tension:0.4,order:1}
       ]);
     } else if (tid !== 'imm') emptyChart(tid+'-qctrd');
+
+    // ER vs LIR/NCR cumulative lines
+    if (erCumLabels.length) {
+      makeChart('chart-'+tid+'-erlir','line',erCumLabels,[
+        {
+          label:'ER Number',
+          data:erCumData,
+          borderColor:CHART_COLORS.line,
+          backgroundColor:'rgba(78,207,160,0.08)',
+          borderWidth:2.5,
+          pointRadius:3,
+          fill:true,
+          tension:0.3
+        },
+        {
+          label:'LIR/NCR Number',
+          data:lirCumData,
+          borderColor:CHART_COLORS.bar2,
+          backgroundColor:'rgba(100,160,220,0.08)',
+          borderWidth:2.5,
+          pointRadius:3,
+          fill:true,
+          tension:0.3
+        }
+      ]);
+    } else emptyChart(tid+'-erlir');
 
     // Scatter: review length vs corrections
     if (scatterData.length) {
