@@ -249,7 +249,7 @@
   .audit-entry-user{color:var(--green-txt);font-weight:500;}
   .audit-entry-time{color:var(--txt3);font-size:9pt;}
   .audit-entry-val{color:var(--txt2);font-size:9.5pt;margin-top:2px;word-break:break-word;max-height:40px;overflow:hidden;text-overflow:ellipsis;}
-  .lot-checks{display:flex;justify-content:space-between;margin-top:4px;gap:3px;}
+  .hold-badge{position:absolute;top:3px;left:3px;background:#7a4a00;color:#f0c040;font-size:7pt;font-family:var(--aptos);font-weight:600;padding:1px 5px;border-radius:3px;letter-spacing:.04em;pointer-events:none;z-index:2;line-height:1.4;border:1px solid #c8922a;}
   .lot-checks-left,.lot-checks-right{display:flex;flex-direction:column;gap:2px;align-items:flex-start;}
   .lot-checks.single-checked{justify-content:center;}
   .lot-check-item{display:flex;align-items:center;gap:2px;font-size:7.5pt;font-family:var(--aptos);color:var(--txt3);cursor:pointer;user-select:none;line-height:1;}
@@ -2220,6 +2220,20 @@ function rowHTML(tid, row, i, isDel) {
         var lotSuffix = isDel && row._dispositionedAt
           ? '<span class="disp-stamp">Dispositioned: ' + row._dispositionedAt + '</span>'
           : '';
+        // Hold badge — shown when ER Number or LIR/NCR Number is filled in AND not fully struck through
+        var hasER  = row.erLirNumber  && row.erLirNumber.replace(/<[^>]+>/g,'').trim();
+        var hasLIR = row.lirNcrNumber && row.lirNcrNumber.replace(/<[^>]+>/g,'').trim();
+        // Check if the entire value is wrapped in a struck span (purple strikethrough)
+        function isFullyStruck(html) {
+          if (!html) return false;
+          var stripped = html.trim();
+          // Fully struck: entire content is inside one or more .struck spans with no unstrucktext outside
+          var unstruck = stripped.replace(/<span[^>]*class="struck"[^>]*>.*?<\/span>/g, '').replace(/<[^>]+>/g,'').trim();
+          return stripped.length > 0 && unstruck.length === 0;
+        }
+        var erHeld  = hasER  && !isFullyStruck(row.erLirNumber);
+        var lirHeld = hasLIR && !isFullyStruck(row.lirNcrNumber);
+        var holdBadge = (erHeld || lirHeld) ? '<span class="hold-badge">⚠ HOLD</span>' : '';
         if (tid === 'imm') {
           var lc = row.lotChecks || {};
           var checked = Object.keys(lc).find(function(k){ return lc[k]; });
@@ -2239,7 +2253,7 @@ function rowHTML(tid, row, i, isDel) {
             '<div class="lot-checks-right">' + rightBoxes.map(mkBox).join('') + '</div>' +
             '</div>';
         }
-        return textTd('lotNumbers', row.lotNumbers, 'Lot numbers', lotSuffix);
+        return textTd('lotNumbers', row.lotNumbers, 'Lot numbers', holdBadge + lotSuffix);
       }
       case 'dateIssued':        return dateCell('dateIssued', row.dateIssued, 'MM/DD/YYYY');
       case 'dateManufactured':  return dateCell('dateManufactured', row.dateManufactured, 'MM/DD/YYYY');
