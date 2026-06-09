@@ -1877,6 +1877,8 @@ function applyTextStrike() {
   var r = s.rows.find(function(r){ return r.id === rowId; }) ||
           s.deleted.find(function(r){ return r.id === rowId; });
   if (r) { r[field] = ce.innerHTML; scheduleSave(); }
+  // Update hold badge instantly if ER or LIR/NCR was struck
+  if (field === 'erLirNumber' || field === 'lirNcrNumber') updateHoldBadge(tid, rowId);
 }
 
 // Date/calc cells: whole-cell strike on click
@@ -2734,6 +2736,45 @@ function toggleDelRow(tid, id, cb) {
   updateHeaderRestoreButtons(tid);
 }
 
+function updateHoldBadge(tid, rowId) {
+  var s = T[tid];
+  var row = s.rows.find(function(r){ return r.id === rowId; }) ||
+            s.deleted.find(function(r){ return r.id === rowId; });
+  if (!row) return;
+
+  // Find the lot number cell for this row
+  var tr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
+           document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]');
+  if (!tr) return;
+
+  var lotTd = tr.querySelector('.ci[data-field="lotNumbers"]');
+  if (!lotTd) return;
+  var td = lotTd.closest('td');
+  if (!td) return;
+
+  function isFullyStruck(html) {
+    if (!html) return false;
+    var unstruck = html.trim().replace(/<span[^>]*class="struck"[^>]*>.*?<\/span>/g,'').replace(/<[^>]+>/g,'').trim();
+    return html.trim().length > 0 && unstruck.length === 0;
+  }
+
+  var hasER  = row.erLirNumber  && row.erLirNumber.replace(/<[^>]+>/g,'').trim();
+  var hasLIR = row.lirNcrNumber && row.lirNcrNumber.replace(/<[^>]+>/g,'').trim();
+  var erHeld  = hasER  && !isFullyStruck(row.erLirNumber);
+  var lirHeld = hasLIR && !isFullyStruck(row.lirNcrNumber);
+  var shouldShow = !!(erHeld || lirHeld);
+
+  var existing = td.querySelector('.hold-badge');
+  if (shouldShow && !existing) {
+    var badge = document.createElement('span');
+    badge.className = 'hold-badge';
+    badge.textContent = '⚠ HOLD';
+    td.appendChild(badge);
+  } else if (!shouldShow && existing) {
+    existing.remove();
+  }
+}
+
 function updateHeaderRestoreButtons(tid) {
   var s       = T[tid];
   var count   = s.permSelected.size;
@@ -2847,6 +2888,8 @@ function updHtml(el) {
   var r = s.rows.find(function(r){ return r.id === rowId; }) ||
           s.deleted.find(function(r){ return r.id === rowId; });
   if (r) r[field] = el.innerHTML;
+  // Update hold badge live when ER or LIR/NCR fields change
+  if (field === 'erLirNumber' || field === 'lirNcrNumber') updateHoldBadge(tid, rowId);
   // Only expand row height if content has grown — no full reflow
   var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]');
   if (mainTr) {
@@ -2867,6 +2910,8 @@ function updHtmlBlur(el) {
     stampAudit(r, field, el.innerHTML);
     scheduleSave();
   }
+  // Update hold badge on blur (catches strike-through changes)
+  if (field === 'erLirNumber' || field === 'lirNcrNumber') updateHoldBadge(tid, rowId);
   // Shrink row to natural minimum after edit
   collapseRowHeight(tid, rowId);
 }
