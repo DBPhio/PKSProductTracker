@@ -183,7 +183,8 @@
   .search-close{background:transparent;border:none;color:var(--txt3);cursor:pointer;font-size:13pt;padding:0 2px;line-height:1;}
   .search-close:hover{color:var(--txt);}
   .search-highlight{background:#7a5a00;color:#f0c040;border-radius:2px;padding:0 1px;}
-  .search-highlight.active{background:#c8922a;color:#fff;outline:2px solid #f0c040;}
+  tr.search-match td{outline:1px solid #7a5a00!important;background:#2a2200!important;}
+  tr.search-match-active td{outline:2px solid #c8922a!important;background:#3a2e00!important;}
   .presence-wrap{position:relative;display:inline-block;cursor:default;}
   .presence-user{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10pt;color:var(--txt2);}
   .presence-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
@@ -1111,7 +1112,7 @@ function updateTicker() {
 // ================================================================
 //  CTRL+F SEARCH
 // ================================================================
-var _searchMatches  = []; // [{el, original}]
+var _searchMatches  = []; // [{row tr element, panel tid}]
 var _searchCurrent  = -1;
 var _searchActive   = false;
 
@@ -1129,8 +1130,6 @@ function closeSearch() {
   _searchActive = false;
   document.getElementById('search-bar').classList.remove('open');
   clearSearchHighlights();
-  _searchMatches = [];
-  _searchCurrent = -1;
 }
 
 function onSearchInput() {
@@ -1142,15 +1141,12 @@ function onSearchInput() {
 
 function onSearchKey(e) {
   if (e.key === 'Escape') { closeSearch(); return; }
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    searchStep(e.shiftKey ? -1 : 1);
-  }
+  if (e.key === 'Enter') { e.preventDefault(); searchStep(e.shiftKey ? -1 : 1); }
 }
 
 function clearSearchHighlights() {
-  _searchMatches.forEach(function(m) {
-    if (m.el && m.el.parentNode) m.el.outerHTML = m.original;
+  document.querySelectorAll('tr.search-match, tr.search-match-active').forEach(function(tr) {
+    tr.classList.remove('search-match', 'search-match-active');
   });
   _searchMatches = [];
   _searchCurrent = -1;
@@ -1160,54 +1156,26 @@ function runSearch(q) {
   var ql = q.toLowerCase();
   _searchMatches = [];
 
-  // Search all contenteditable cells and date inputs across all panels
-  var cells = document.querySelectorAll(
-    '#imm-tbody .ci, #prompt-tbody .ci, #biofire-tbody .ci,' +
-    '#imm-calc-tbody .ci, #prompt-calc-tbody .ci, #biofire-calc-tbody .ci,' +
-    '#imm-tbody input.di:not(.date-hidden), #prompt-tbody input.di:not(.date-hidden), #biofire-tbody input.di:not(.date-hidden)'
-  );
-
-  cells.forEach(function(el) {
-    var text = el.tagName === 'INPUT' ? el.value : (el.textContent || el.innerText || '');
-    if (!text.toLowerCase().includes(ql)) return;
-
-    if (el.tagName === 'INPUT') {
-      // For date inputs just record the match — scroll to it
-      _searchMatches.push({ el: el, original: null, isInput: true });
-    } else {
-      // Wrap matching text in highlight spans
-      var original = el.innerHTML;
-      var escaped  = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      var highlighted = original.replace(
-        new RegExp('(' + escaped + ')', 'gi'),
-        '<span class="search-highlight">$1</span>'
-      );
-      if (highlighted !== original) {
-        el.innerHTML = highlighted;
-        var spans = el.querySelectorAll('.search-highlight');
-        spans.forEach(function(span) {
-          _searchMatches.push({ el: span, original: original, parentEl: el, isInput: false });
-        });
-      }
-    }
+  IDS.forEach(function(tid) {
+    // Search active rows
+    document.querySelectorAll('#' + tid + '-tbody tr[data-id], #' + tid + '-tbody tr[data-delid]').forEach(function(tr) {
+      // Get plain text from all cells — use textContent to avoid HTML corruption
+      var text = tr.textContent.toLowerCase();
+      if (!text.includes(ql)) return;
+      tr.classList.add('search-match');
+      _searchMatches.push({ tr: tr, tid: tid });
+    });
   });
 
   var count = _searchMatches.length;
   document.getElementById('search-count').textContent = count ? '1 of ' + count : 'No results';
-
-  if (count) {
-    _searchCurrent = 0;
-    activateMatch(0);
-  }
+  if (count) { _searchCurrent = 0; activateMatch(0); }
 }
 
 function searchStep(dir) {
   if (!_searchMatches.length) return;
   // Deactivate current
-  if (_searchCurrent >= 0 && _searchCurrent < _searchMatches.length) {
-    var cur = _searchMatches[_searchCurrent];
-    if (cur.el && !cur.isInput) cur.el.classList.remove('active');
-  }
+  if (_searchCurrent >= 0) _searchMatches[_searchCurrent].tr.classList.remove('search-match-active');
   _searchCurrent = (_searchCurrent + dir + _searchMatches.length) % _searchMatches.length;
   activateMatch(_searchCurrent);
   document.getElementById('search-count').textContent = (_searchCurrent + 1) + ' of ' + _searchMatches.length;
@@ -1216,38 +1184,26 @@ function searchStep(dir) {
 function activateMatch(idx) {
   var m = _searchMatches[idx];
   if (!m) return;
-  var target = m.el;
-  if (!target) return;
+  m.tr.classList.add('search-match-active');
 
-  if (!m.isInput) target.classList.add('active');
-
-  // Scroll into view — find the containing tbody-wrap
-  var row = target.closest('tr');
-  var tbody = row && row.closest('tbody');
-  var wrap  = tbody && (
-    document.getElementById('imm-tbody-wrap')   && tbody.id === 'imm-tbody'    ? document.getElementById('imm-tbody-wrap')   :
-    document.getElementById('prompt-tbody-wrap') && tbody.id === 'prompt-tbody' ? document.getElementById('prompt-tbody-wrap') :
-    document.getElementById('biofire-tbody-wrap')
-  );
-  // Simpler: find the scroll container
-  var scrollEl = target.closest('.tbody-wrap') || target.closest('.calc-body-wrap');
-  if (scrollEl && row) {
-    var wrapRect = scrollEl.getBoundingClientRect();
-    var rowRect  = row.getBoundingClientRect();
-    var offset   = scrollEl.scrollTop + (rowRect.top - wrapRect.top) - wrapRect.height / 2;
-    scrollEl.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
-  }
+  // Scroll the matching row into the center of its scroll container
+  var wrap = document.getElementById(m.tid + '-tbody-wrap');
+  if (!wrap) return;
+  var wrapRect = wrap.getBoundingClientRect();
+  var trRect   = m.tr.getBoundingClientRect();
+  var offset   = wrap.scrollTop + (trRect.top - wrapRect.top) - wrapRect.height / 2 + trRect.height / 2;
+  wrap.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+  // Sync calc panel
+  var cb = document.getElementById(m.tid + '-calc-body');
+  if (cb) cb.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
 }
 
 // Intercept Ctrl+F / Cmd+F
 document.addEventListener('keydown', function(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
     e.preventDefault();
-    if (_searchActive) {
-      document.getElementById('search-input').focus();
-    } else {
-      openSearch();
-    }
+    if (_searchActive) { document.getElementById('search-input').focus(); }
+    else { openSearch(); }
   }
   if (e.key === 'Escape' && _searchActive) closeSearch();
 });
