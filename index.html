@@ -171,7 +171,19 @@
   #prompt-calc-tbody tr:hover td{background:#222c38!important;}
   #biofire-calc-tbody tr:hover td{background:#322a24!important;}
 
-  /* ── Presence tooltip ── */
+  /* ── Ctrl+F Search Bar ── */
+  .search-bar{position:fixed;top:44px;left:50%;transform:translateX(-50%);z-index:99998;background:var(--bg);border:1px solid var(--green);border-radius:8px;padding:6px 10px;display:none;align-items:center;gap:8px;box-shadow:0 8px 28px rgba(0,0,0,0.6);font-family:var(--aptos);min-width:320px;}
+  .search-bar.open{display:flex;}
+  .search-input{background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:4px 10px;color:var(--txt);font-size:11pt;font-family:var(--aptos);outline:none;flex:1;min-width:0;}
+  .search-input:focus{border-color:var(--green);}
+  .search-count{font-size:9.5pt;color:var(--txt3);white-space:nowrap;min-width:60px;text-align:center;}
+  .search-nav{display:flex;gap:2px;}
+  .search-nav-btn{background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--txt3);cursor:pointer;padding:2px 8px;font-size:11pt;line-height:1;transition:background .12s,color .12s;}
+  .search-nav-btn:hover{background:var(--bg2);color:var(--txt);}
+  .search-close{background:transparent;border:none;color:var(--txt3);cursor:pointer;font-size:13pt;padding:0 2px;line-height:1;}
+  .search-close:hover{color:var(--txt);}
+  .search-highlight{background:#7a5a00;color:#f0c040;border-radius:2px;padding:0 1px;}
+  .search-highlight.active{background:#c8922a;color:#fff;outline:2px solid #f0c040;}
   .presence-wrap{position:relative;display:inline-block;cursor:default;}
   .presence-user{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10pt;color:var(--txt2);}
   .presence-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
@@ -345,6 +357,18 @@
       </div>
     </div>
   </div>
+  <!-- Search bar (Ctrl+F) -->
+  <div class="search-bar" id="search-bar">
+    <input class="search-input" id="search-input" type="text" placeholder="Search all panels…" autocomplete="off"
+      oninput="onSearchInput()" onkeydown="onSearchKey(event)">
+    <span class="search-count" id="search-count"></span>
+    <div class="search-nav">
+      <button class="search-nav-btn" onclick="searchStep(-1)" title="Previous (Shift+Enter)">▲</button>
+      <button class="search-nav-btn" onclick="searchStep(1)"  title="Next (Enter)">▼</button>
+    </div>
+    <button class="search-close" onclick="closeSearch()" title="Close (Escape)">✕</button>
+  </div>
+
   <!-- Tab bar -->
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-tracker" onclick="switchTab('tracker')">📋 Tracker</button>
@@ -1085,7 +1109,148 @@ function updateTicker() {
 })();
 
 // ================================================================
-//  TABS & CHARTS
+//  CTRL+F SEARCH
+// ================================================================
+var _searchMatches  = []; // [{el, original}]
+var _searchCurrent  = -1;
+var _searchActive   = false;
+
+function openSearch() {
+  _searchActive = true;
+  var bar = document.getElementById('search-bar');
+  bar.classList.add('open');
+  var inp = document.getElementById('search-input');
+  inp.value = '';
+  inp.focus();
+  document.getElementById('search-count').textContent = '';
+}
+
+function closeSearch() {
+  _searchActive = false;
+  document.getElementById('search-bar').classList.remove('open');
+  clearSearchHighlights();
+  _searchMatches = [];
+  _searchCurrent = -1;
+}
+
+function onSearchInput() {
+  clearSearchHighlights();
+  var q = document.getElementById('search-input').value.trim();
+  if (!q) { document.getElementById('search-count').textContent = ''; return; }
+  runSearch(q);
+}
+
+function onSearchKey(e) {
+  if (e.key === 'Escape') { closeSearch(); return; }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    searchStep(e.shiftKey ? -1 : 1);
+  }
+}
+
+function clearSearchHighlights() {
+  _searchMatches.forEach(function(m) {
+    if (m.el && m.el.parentNode) m.el.outerHTML = m.original;
+  });
+  _searchMatches = [];
+  _searchCurrent = -1;
+}
+
+function runSearch(q) {
+  var ql = q.toLowerCase();
+  _searchMatches = [];
+
+  // Search all contenteditable cells and date inputs across all panels
+  var cells = document.querySelectorAll(
+    '#imm-tbody .ci, #prompt-tbody .ci, #biofire-tbody .ci,' +
+    '#imm-calc-tbody .ci, #prompt-calc-tbody .ci, #biofire-calc-tbody .ci,' +
+    '#imm-tbody input.di:not(.date-hidden), #prompt-tbody input.di:not(.date-hidden), #biofire-tbody input.di:not(.date-hidden)'
+  );
+
+  cells.forEach(function(el) {
+    var text = el.tagName === 'INPUT' ? el.value : (el.textContent || el.innerText || '');
+    if (!text.toLowerCase().includes(ql)) return;
+
+    if (el.tagName === 'INPUT') {
+      // For date inputs just record the match — scroll to it
+      _searchMatches.push({ el: el, original: null, isInput: true });
+    } else {
+      // Wrap matching text in highlight spans
+      var original = el.innerHTML;
+      var escaped  = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      var highlighted = original.replace(
+        new RegExp('(' + escaped + ')', 'gi'),
+        '<span class="search-highlight">$1</span>'
+      );
+      if (highlighted !== original) {
+        el.innerHTML = highlighted;
+        var spans = el.querySelectorAll('.search-highlight');
+        spans.forEach(function(span) {
+          _searchMatches.push({ el: span, original: original, parentEl: el, isInput: false });
+        });
+      }
+    }
+  });
+
+  var count = _searchMatches.length;
+  document.getElementById('search-count').textContent = count ? '1 of ' + count : 'No results';
+
+  if (count) {
+    _searchCurrent = 0;
+    activateMatch(0);
+  }
+}
+
+function searchStep(dir) {
+  if (!_searchMatches.length) return;
+  // Deactivate current
+  if (_searchCurrent >= 0 && _searchCurrent < _searchMatches.length) {
+    var cur = _searchMatches[_searchCurrent];
+    if (cur.el && !cur.isInput) cur.el.classList.remove('active');
+  }
+  _searchCurrent = (_searchCurrent + dir + _searchMatches.length) % _searchMatches.length;
+  activateMatch(_searchCurrent);
+  document.getElementById('search-count').textContent = (_searchCurrent + 1) + ' of ' + _searchMatches.length;
+}
+
+function activateMatch(idx) {
+  var m = _searchMatches[idx];
+  if (!m) return;
+  var target = m.el;
+  if (!target) return;
+
+  if (!m.isInput) target.classList.add('active');
+
+  // Scroll into view — find the containing tbody-wrap
+  var row = target.closest('tr');
+  var tbody = row && row.closest('tbody');
+  var wrap  = tbody && (
+    document.getElementById('imm-tbody-wrap')   && tbody.id === 'imm-tbody'    ? document.getElementById('imm-tbody-wrap')   :
+    document.getElementById('prompt-tbody-wrap') && tbody.id === 'prompt-tbody' ? document.getElementById('prompt-tbody-wrap') :
+    document.getElementById('biofire-tbody-wrap')
+  );
+  // Simpler: find the scroll container
+  var scrollEl = target.closest('.tbody-wrap') || target.closest('.calc-body-wrap');
+  if (scrollEl && row) {
+    var wrapRect = scrollEl.getBoundingClientRect();
+    var rowRect  = row.getBoundingClientRect();
+    var offset   = scrollEl.scrollTop + (rowRect.top - wrapRect.top) - wrapRect.height / 2;
+    scrollEl.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+  }
+}
+
+// Intercept Ctrl+F / Cmd+F
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    e.preventDefault();
+    if (_searchActive) {
+      document.getElementById('search-input').focus();
+    } else {
+      openSearch();
+    }
+  }
+  if (e.key === 'Escape' && _searchActive) closeSearch();
+});
 // ================================================================
 var _activeTab   = 'tracker';
 var _chartRefs   = {}; // Chart.js instances keyed by canvas id
