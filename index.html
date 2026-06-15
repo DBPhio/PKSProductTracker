@@ -2466,8 +2466,41 @@ function calcRowHTML(tid, row, isDel) {
   // Expected Disposition Date: PR Ended + offset (IMM/BioFire: +6 days, Prompt: +18 days)
   var dispOffset = tid === 'prompt' ? 18 : 6;
   var dispCell = '';
-  if (row.dateManufactured) {
-    var prDate = parseLocalDate(row.dateManufactured);
+
+  // ── BioFire campaign detection ─────────────────────────────
+  // Strip trailing single letter from lot number to get campaign root
+  // e.g. "BF26013A" → root "BF26013". If 2+ rows share a root → campaign.
+  // Campaign uses the latest dateManufactured across the group as the baseline.
+  var baseDateStr = row.dateManufactured; // default: use own date
+
+  if (tid === 'biofire' && row.lotNumbers) {
+    var lotRaw = (row.lotNumbers || '').replace(/<[^>]+>/g,'').trim();
+    var campMatch = lotRaw.match(/^(.+)[A-Za-z]$/);
+    if (campMatch) {
+      var campRoot = campMatch[1];
+      // Collect all BioFire rows (active + deleted) with same root
+      var allBF = (T.biofire.rows || []).concat(T.biofire.deleted || []);
+      var campRows = allBF.filter(function(r) {
+        var rLot = (r.lotNumbers || '').replace(/<[^>]+>/g,'').trim();
+        var m = rLot.match(/^(.+)[A-Za-z]$/);
+        return m && m[1] === campRoot;
+      });
+      // Only treat as campaign if more than one row shares the root
+      if (campRows.length > 1) {
+        // Find the latest dateManufactured across the campaign
+        var latestDate = null;
+        campRows.forEach(function(r) {
+          if (!r.dateManufactured) return;
+          var d = parseLocalDate(r.dateManufactured);
+          if (d && (!latestDate || d > latestDate)) latestDate = d;
+        });
+        if (latestDate) baseDateStr = latestDate.getMonth()+1 + '/' + latestDate.getDate() + '/' + latestDate.getFullYear();
+      }
+    }
+  }
+
+  if (baseDateStr) {
+    var prDate = parseLocalDate(baseDateStr);
     if (prDate) {
       var expDate  = new Date(prDate.getTime() + dispOffset * 86400000);
       var expMid   = midnightLocal(expDate);
