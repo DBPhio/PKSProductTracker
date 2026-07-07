@@ -1214,16 +1214,25 @@ function activateMatch(idx) {
   var wrap = document.getElementById(m.tid + '-tbody-wrap');
   if (!wrap) return;
 
-  // getBoundingClientRect works reliably even for rows scrolled out of view —
-  // it always reflects true viewport position regardless of positioning context
   var wrapRect = wrap.getBoundingClientRect();
   var trRect   = m.tr.getBoundingClientRect();
   var target   = wrap.scrollTop + (trRect.top - wrapRect.top) - (wrapRect.height / 2) + (trRect.height / 2);
-  target = Math.max(0, target);
 
-  wrap.scrollTo({ top: target, behavior: 'smooth' });
+  // Clamp to the actual scrollable range so it never falls short or overshoots
+  var maxScroll = wrap.scrollHeight - wrap.clientHeight;
+  target = Math.max(0, Math.min(target, maxScroll));
+
+  // Set instantly, then sync the calc panel to the exact same value —
+  // avoids two competing smooth-scroll animations fighting each other
+  // through their own scroll-sync listeners.
+  _scrollSyncing[m.tid] = true;
+  wrap.scrollTop = target;
   var cb = document.getElementById(m.tid + '-calc-body');
-  if (cb) cb.scrollTo({ top: target, behavior: 'smooth' });
+  if (cb) {
+    var cbMax = cb.scrollHeight - cb.clientHeight;
+    cb.scrollTop = Math.max(0, Math.min(target, cbMax));
+  }
+  _scrollSyncing[m.tid] = false;
 }
 
 // Intercept Ctrl+F / Cmd+F
