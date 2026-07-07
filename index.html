@@ -1117,9 +1117,10 @@ var _searchCurrent  = -1;
 var _searchActive   = false;
 
 function openSearch() {
+  // Switch to tracker tab if on a chart tab
+  if (_activeTab !== 'tracker') switchTab('tracker');
   _searchActive = true;
-  var bar = document.getElementById('search-bar');
-  bar.classList.add('open');
+  document.getElementById('search-bar').classList.add('open');
   var inp = document.getElementById('search-input');
   inp.value = '';
   inp.focus();
@@ -1150,6 +1151,27 @@ function clearSearchHighlights() {
   });
   _searchMatches = [];
   _searchCurrent = -1;
+  document.getElementById('search-count').textContent = '';
+}
+
+// Fields to search — only user-entered content, not UI labels or buttons
+var SEARCH_FIELDS = [
+  'lotNumbers','dateIssued','dateManufactured','prInitialReview',
+  'dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC',
+  'initialReviewDate','reviewCompleteDate','correctionsDate',
+  'erLirNumber','lirNcrNumber','sterilityDate'
+];
+
+function getRowSearchText(tid, rowId) {
+  // Get text from the in-memory data model — avoids reading UI chrome
+  var s = T[tid];
+  var row = s.rows.find(function(r){ return r.id === rowId; }) ||
+            s.deleted.find(function(r){ return r.id === rowId; });
+  if (!row) return '';
+  return SEARCH_FIELDS.map(function(f) {
+    var v = row[f] || '';
+    return typeof v === 'string' ? v.replace(/<[^>]+>/g,'') : '';
+  }).join(' ').toLowerCase();
 }
 
 function runSearch(q) {
@@ -1157,25 +1179,28 @@ function runSearch(q) {
   _searchMatches = [];
 
   IDS.forEach(function(tid) {
-    // Search active rows
     document.querySelectorAll('#' + tid + '-tbody tr[data-id], #' + tid + '-tbody tr[data-delid]').forEach(function(tr) {
-      // Get plain text from all cells — use textContent to avoid HTML corruption
-      var text = tr.textContent.toLowerCase();
+      var rowId = parseInt(tr.dataset.id || tr.dataset.delid, 10);
+      var text  = getRowSearchText(tid, rowId);
       if (!text.includes(ql)) return;
       tr.classList.add('search-match');
-      _searchMatches.push({ tr: tr, tid: tid });
+      _searchMatches.push({ tr: tr, tid: tid, rowId: rowId });
     });
   });
 
   var count = _searchMatches.length;
-  document.getElementById('search-count').textContent = count ? '1 of ' + count : 'No results';
-  if (count) { _searchCurrent = 0; activateMatch(0); }
+  if (!count) {
+    document.getElementById('search-count').textContent = 'No results';
+    return;
+  }
+  _searchCurrent = 0;
+  activateMatch(0);
+  document.getElementById('search-count').textContent = '1 of ' + count;
 }
 
 function searchStep(dir) {
   if (!_searchMatches.length) return;
-  // Deactivate current
-  if (_searchCurrent >= 0) _searchMatches[_searchCurrent].tr.classList.remove('search-match-active');
+  _searchMatches[_searchCurrent].tr.classList.remove('search-match-active');
   _searchCurrent = (_searchCurrent + dir + _searchMatches.length) % _searchMatches.length;
   activateMatch(_searchCurrent);
   document.getElementById('search-count').textContent = (_searchCurrent + 1) + ' of ' + _searchMatches.length;
@@ -1186,16 +1211,16 @@ function activateMatch(idx) {
   if (!m) return;
   m.tr.classList.add('search-match-active');
 
-  // Scroll the matching row into the center of its scroll container
+  // Reliable scroll: use offsetTop relative to the table rather than getBoundingClientRect
   var wrap = document.getElementById(m.tid + '-tbody-wrap');
   if (!wrap) return;
-  var wrapRect = wrap.getBoundingClientRect();
-  var trRect   = m.tr.getBoundingClientRect();
-  var offset   = wrap.scrollTop + (trRect.top - wrapRect.top) - wrapRect.height / 2 + trRect.height / 2;
-  wrap.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
-  // Sync calc panel
+  var offsetTop = 0;
+  var el = m.tr;
+  while (el && el !== wrap) { offsetTop += el.offsetTop; el = el.offsetParent; }
+  var target = Math.max(0, offsetTop - wrap.clientHeight / 2 + m.tr.offsetHeight / 2);
+  wrap.scrollTo({ top: target, behavior: 'smooth' });
   var cb = document.getElementById(m.tid + '-calc-body');
-  if (cb) cb.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+  if (cb) cb.scrollTo({ top: target, behavior: 'smooth' });
 }
 
 // Intercept Ctrl+F / Cmd+F
