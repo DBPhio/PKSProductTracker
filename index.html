@@ -1211,13 +1211,16 @@ function activateMatch(idx) {
   if (!m) return;
   m.tr.classList.add('search-match-active');
 
-  // Reliable scroll: use offsetTop relative to the table rather than getBoundingClientRect
   var wrap = document.getElementById(m.tid + '-tbody-wrap');
   if (!wrap) return;
-  var offsetTop = 0;
-  var el = m.tr;
-  while (el && el !== wrap) { offsetTop += el.offsetTop; el = el.offsetParent; }
-  var target = Math.max(0, offsetTop - wrap.clientHeight / 2 + m.tr.offsetHeight / 2);
+
+  // getBoundingClientRect works reliably even for rows scrolled out of view —
+  // it always reflects true viewport position regardless of positioning context
+  var wrapRect = wrap.getBoundingClientRect();
+  var trRect   = m.tr.getBoundingClientRect();
+  var target   = wrap.scrollTop + (trRect.top - wrapRect.top) - (wrapRect.height / 2) + (trRect.height / 2);
+  target = Math.max(0, target);
+
   wrap.scrollTo({ top: target, behavior: 'smooth' });
   var cb = document.getElementById(m.tid + '-calc-body');
   if (cb) cb.scrollTo({ top: target, behavior: 'smooth' });
