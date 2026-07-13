@@ -2282,15 +2282,27 @@ function syncCalcRowHeights(tid) {
 // Sync a single row — called on every keystroke / date change
 // Shrink a row to its natural minimum height, keeping both sides in sync
 function collapseRowHeight(tid, rowId) {
-  // Let the browser settle then lock both sides to the same max height
+  // Let the browser settle then lock both sides to the same max height,
+  // compensating scrollTop so the shrink/grow doesn't visually shift the page.
   requestAnimationFrame(function() {
     var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
                  document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]');
     var calcTr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + rowId + '"]');
     if (!mainTr) return;
+
+    var wrap = document.getElementById(tid + '-tbody-wrap');
+    var cb   = document.getElementById(tid + '-calc-body');
+
+    // Record the row's position relative to the scroll container BEFORE resizing
+    var prevHeight  = mainTr.getBoundingClientRect().height;
+    var wrapRectTop = wrap ? wrap.getBoundingClientRect().top : 0;
+    var trTopBefore = mainTr.getBoundingClientRect().top;
+    var isAboveOrAtView = wrap && trTopBefore <= wrapRectTop;
+
     // Clear to natural height first, read, then lock both sides
     mainTr.style.height = '';
     if (calcTr) calcTr.style.height = '';
+
     requestAnimationFrame(function() {
       var mh = mainTr.getBoundingClientRect().height;
       var ch = calcTr ? calcTr.getBoundingClientRect().height : 0;
@@ -2298,6 +2310,16 @@ function collapseRowHeight(tid, rowId) {
       if (h > 0) {
         mainTr.style.height = h + 'px';
         if (calcTr) calcTr.style.height = h + 'px';
+      }
+
+      // Compensate scroll position by the exact height delta —
+      // only needed if the row sits above or at the top of the visible area,
+      // since a shrink/grow there shifts everything below it.
+      var newHeight = h > 0 ? h : mainTr.getBoundingClientRect().height;
+      var delta = newHeight - prevHeight;
+      if (delta !== 0 && isAboveOrAtView && wrap) {
+        wrap.scrollTop += delta;
+        if (cb) cb.scrollTop = wrap.scrollTop;
       }
     });
   });
