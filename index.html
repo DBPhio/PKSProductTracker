@@ -3239,6 +3239,11 @@ function toggleCalcPanel(tid) {
 
 var rowDrag = null;
 var ghost   = null;
+var _dragScrollRAF = null;
+var _dragMouseY    = 0;
+
+var DRAG_SCROLL_EDGE  = 50;  // px from top/bottom edge that triggers auto-scroll
+var DRAG_SCROLL_SPEED = 12;  // max px per frame near the very edge
 
 function startRowDrag(e, tid, rowId) {
   e.preventDefault();
@@ -3262,13 +3267,54 @@ function startRowDrag(e, tid, rowId) {
   document.body.appendChild(ghost);
 
   rowDrag = { tid: tid, rowId: rowId, dragIdx: dragIdx, dropId: -1, dropIdx: -1, dropPos: null };
+  _dragMouseY = e.clientY;
+  startDragAutoScroll(tid);
+}
+
+function startDragAutoScroll(tid) {
+  var wrap = document.getElementById(tid + '-tbody-wrap');
+  var cb   = document.getElementById(tid + '-calc-body');
+  if (!wrap) return;
+
+  function step() {
+    if (!rowDrag) { _dragScrollRAF = null; return; }
+    var rect = wrap.getBoundingClientRect();
+    var y    = _dragMouseY;
+    var dist = null, dir = 0;
+
+    if (y < rect.top + DRAG_SCROLL_EDGE) {
+      dist = (rect.top + DRAG_SCROLL_EDGE) - y;
+      dir  = -1;
+    } else if (y > rect.bottom - DRAG_SCROLL_EDGE) {
+      dist = y - (rect.bottom - DRAG_SCROLL_EDGE);
+      dir  = 1;
+    }
+
+    if (dir !== 0) {
+      var speed = Math.min(DRAG_SCROLL_SPEED, Math.max(2, dist / DRAG_SCROLL_EDGE * DRAG_SCROLL_SPEED));
+      wrap.scrollTop += dir * speed;
+      if (cb) cb.scrollTop = wrap.scrollTop;
+      // Re-evaluate drop target since rows shifted under the cursor
+      updateRowDrag({ clientX: 0, clientY: y, preserveGhost: true });
+    }
+
+    _dragScrollRAF = requestAnimationFrame(step);
+  }
+  _dragScrollRAF = requestAnimationFrame(step);
+}
+
+function stopDragAutoScroll() {
+  if (_dragScrollRAF) { cancelAnimationFrame(_dragScrollRAF); _dragScrollRAF = null; }
 }
 
 function updateRowDrag(e) {
   if (!rowDrag) return;
+  _dragMouseY = e.clientY;
 
-  ghost.style.left = (e.clientX + 14) + 'px';
-  ghost.style.top  = (e.clientY - 10) + 'px';
+  if (!e.preserveGhost) {
+    ghost.style.left = (e.clientX + 14) + 'px';
+    ghost.style.top  = (e.clientY - 10) + 'px';
+  }
 
   var tid   = rowDrag.tid;
   var tbody = document.getElementById(tid + '-tbody');
@@ -3310,6 +3356,7 @@ function updateRowDrag(e) {
 
 function finishRowDrag() {
   if (!rowDrag) return;
+  stopDragAutoScroll();
 
   var tid     = rowDrag.tid;
   var fromIdx = rowDrag.dragIdx;
