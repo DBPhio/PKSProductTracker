@@ -3067,15 +3067,19 @@ function deleteChecked(tid) {
   });
   setTimeout(function() {
     toDel.forEach(function(r) {
+      // Stamp the date it was dispositioned
+      var now = new Date();
+      var m = now.getMonth()+1, d = now.getDate(), y = now.getFullYear();
+      var todayStr = (m<10?'0'+m:m) + '/' + (d<10?'0'+d:d) + '/' + y;
+      r._dispositionedAt = todayStr;
+      // Auto-fill Review Complete Date with the disposition date if it's empty —
+      // ensures review length snapshots below reflect the real completion date
+      if (!r.reviewCompleteDate) r.reviewCompleteDate = todayStr;
       // Freeze the calculated values at the moment of dispositioning
       r._snapIR = tid === 'imm' ? dBetween(r.prInitialReview, r.dateQAReturned) : dBetween(r.dateManufactured, r.dateReturned);
       r._snapQA = tid === 'imm' ? dBetween(r.initialReviewDate, r.reviewCompleteDate) : dBetween(r.dateQAReturned, r.initialReviewDate);
       r._snapQC = dBetween(r.dateReviewQC, r.dateQCReturned);
       r._snapRR = dBetween(r.dateReturned, r.reviewCompleteDate);
-      // Stamp the date it was dispositioned
-      var now = new Date();
-      var m = now.getMonth()+1, d = now.getDate(), y = now.getFullYear();
-      r._dispositionedAt = (m<10?'0'+m:m) + '/' + (d<10?'0'+d:d) + '/' + y;
       r.done = false;
       s.deleted.push(r);
     });
