@@ -784,11 +784,25 @@ function reconcileColumns(tid, remote) {
   var oldCalcOrder = (remote.calcColOrder && remote.calcColOrder.length) ? remote.calcColOrder : defCalc;
   var oldWidths    = (remote.colWidths && remote.colWidths.length) ? remote.colWidths : defW;
 
+  // Safety check: positional width mapping only works if the saved width
+  // array's length actually matches the order arrays we're pairing it with.
+  // If dataColOrder/calcColOrder were never saved (common for data saved
+  // before column drag-reordering existed), we fall back to the CURRENT
+  // default order — which won't match an OLDER, shorter saved width array.
+  // In that case, skip positional mapping entirely rather than risk
+  // misaligned/corrupted widths, and just use current defaults.
+  var expectedLen = 2 + oldDataOrder.length + oldCalcOrder.length;
+  var widthsReliable = oldWidths.length === expectedLen;
+
   // Map each known column key to its saved width, using the OLD order for positional lookup
-  var widthMap = { __cc: oldWidths[0], __cn: oldWidths[1] };
-  var idx = 2;
-  oldDataOrder.forEach(function(k){ widthMap[k] = oldWidths[idx]; idx++; });
-  oldCalcOrder.forEach(function(k){ widthMap[k] = oldWidths[idx]; idx++; });
+  var widthMap = {};
+  if (widthsReliable) {
+    widthMap.__cc = oldWidths[0];
+    widthMap.__cn = oldWidths[1];
+    var idx = 2;
+    oldDataOrder.forEach(function(k){ widthMap[k] = oldWidths[idx]; idx++; });
+    oldCalcOrder.forEach(function(k){ widthMap[k] = oldWidths[idx]; idx++; });
+  }
 
   var newDataOrder = reconcileOrder(oldDataOrder, defData);
   var newCalcOrder = reconcileOrder(oldCalcOrder, defCalc);
