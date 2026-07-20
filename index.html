@@ -218,6 +218,9 @@
   .ci .struck{text-decoration:line-through;color:#c4a8f0;}
   .strike-mode .ci{cursor:text;}
   .di{width:100%;font-size:var(--fs);font-family:var(--aptos);background:transparent;border:none;outline:none;color:var(--txt);cursor:text;display:block;min-width:0;}
+  .num-input{width:100%;font-size:var(--fs);font-family:var(--aptos);background:transparent;border:none;outline:none;color:var(--txt);text-align:center;cursor:text;-moz-appearance:textfield;}
+  .num-input::-webkit-outer-spin-button,.num-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .num-input:focus{outline:1px solid var(--green);border-radius:3px;}
   .di::placeholder{color:var(--txt3);font-size:9pt;}
   .date-wrap{display:flex;align-items:center;gap:2px;width:100%;}
   .date-wrap .di{flex:1;}
@@ -564,10 +567,10 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,108,108,105,75,75,75,108,75]; // 18 cols (IMM)
-const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,98,75,75,75,75,82,75];   // 22 cols (Prompt)
-const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,105,105,75,75,75,75,82,75];   // 21 cols (BioFire)
-const CALC_COL_COUNT = { imm: 7, prompt: 9, biofire: 8 }; // how many cols live in the fixed calc panel
+const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,108,75,75,108,105,75,75,75,80,108,75]; // 21 cols (IMM)
+const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,75,75,105,105,98,75,75,75,75,80,82,75]; // 25 cols (Prompt)
+const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,75,75,105,105,75,75,75,75,80,82,75]; // 24 cols (BioFire)
+const CALC_COL_COUNT = { imm: 8, prompt: 10, biofire: 9 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -823,7 +826,7 @@ function setSyncStatus(state) {
 // ================================================================
 
 function mkRow(id) {
-  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', lotChecks:{}, erLirNumber:'', lirNcrNumber:'', prInitialReview:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, done:false, strikes:{}, _cellMeta:{} };
+  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', lotChecks:{}, erLirNumber:'', lirNcrNumber:'', prInitialReview:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, prErrors:'', qaErrors:'', done:false, strikes:{}, _cellMeta:{} };
 }
 
 function confirmClearAll() {
@@ -1458,8 +1461,49 @@ function renderCharts(tid) {
   var erCumData   = allMonths.map(function(m){ return erMonthly[m]  || 0; });
   var lirCumData  = allMonths.map(function(m){ return lirMonthly[m] || 0; });
 
+  // ── RFT % — monthly average + current month stats ────────────
+  var TRANSACTIONS = { imm: 4498, prompt: 4373, biofire: 4000 };
+  var totalTx = TRANSACTIONS[tid] || 0;
+  function calcRft(r) {
+    var prErr = (r.prErrors === '' || r.prErrors == null) ? 0 : parseInt(r.prErrors, 10) || 0;
+    var qaErr = (r.qaErrors === '' || r.qaErrors == null) ? 0 : parseInt(r.qaErrors, 10) || 0;
+    return totalTx > 0 ? Math.max(0, (totalTx - prErr - qaErr) / totalTx * 100) : null;
+  }
+  var rftByMonth = {}; // { 'MM/YYYY': [pct, pct, ...] }
+  disp.forEach(function(r) {
+    if (!r._dispositionedAt) return;
+    var d = parseLocalDate(r._dispositionedAt);
+    if (!d) return;
+    var key = (d.getMonth()+1) + '/' + d.getFullYear();
+    var pct = calcRft(r);
+    if (pct === null) return;
+    if (!rftByMonth[key]) rftByMonth[key] = [];
+    rftByMonth[key].push(pct);
+  });
+  var rftMonthKeys = Object.keys(rftByMonth).sort(function(a,b) {
+    var pa = a.split('/'), pb = b.split('/');
+    return (parseInt(pa[1])*12+parseInt(pa[0])) - (parseInt(pb[1])*12+parseInt(pb[0]));
+  });
+  var rftTrendLabels = rftMonthKeys;
+  var rftTrendData   = rftMonthKeys.map(function(k) {
+    var arr = rftByMonth[k];
+    return Math.round((arr.reduce(function(a,b){return a+b;},0)/arr.length)*100)/100;
+  });
+
+  // Current calendar month stats
+  var now = new Date();
+  var curKey = (now.getMonth()+1) + '/' + now.getFullYear();
+  var curMonthRft = rftByMonth[curKey] || [];
+  var totalBatchesThisMonth = curMonthRft.length;
+  var avgRftThisMonth = curMonthRft.length
+    ? Math.round((curMonthRft.reduce(function(a,b){return a+b;},0)/curMonthRft.length)*100)/100
+    : null;
+
   // ── Build HTML ───────────────────────────────────────────────
   var html = '';
+
+  // ── TOP: RFT % Over Time — shown first when switching to this tab ──
+  html += card(tid+'-rfttrd', 'RFT % Over Time', 'Average Right First Time % per month — based on ' + totalTx.toLocaleString() + ' transactions per batch', '240px');
 
   // ── ROW 0: Summary stat cards ────────────────────────────────
   html += '<div class="chart-card"><div class="chart-card-title">' + panelName + ' — Turnaround Summary</div>' +
@@ -1470,6 +1514,8 @@ function renderCharts(tid) {
     tid !== 'imm' ? { label:'Avg QC Review', val:avg(qcReview), unit:'d' } : null,
     { label:'Avg Corrections', val:avg(corrDays), unit:'d' },
     { label:'Corrections Rate', val: corrRatePct.length ? corrRatePct[corrRatePct.length-1]+'%' : null, unit:'' },
+    { label:'Batches This Month', val: totalBatchesThisMonth, unit:'' },
+    { label:'Avg RFT % This Month', val: avgRftThisMonth !== null ? avgRftThisMonth+'%' : null, unit:'' },
     { label:'Dispositioned', val:(s.deleted||[]).length, unit:'' },
     { label:'Active', val:(s.rows||[]).length, unit:'' }
   ].filter(Boolean).forEach(function(st) {
@@ -1517,6 +1563,24 @@ function renderCharts(tid) {
 
   // ── Render all charts ────────────────────────────────────────
   requestAnimationFrame(function() {
+    // RFT % trend — rendered first since it's the top chart
+    if (rftTrendLabels.length) {
+      makeChart('chart-'+tid+'-rfttrd','line',rftTrendLabels,[{
+        label:'Avg RFT %',
+        data:rftTrendData,
+        borderColor:CHART_COLORS.line,
+        backgroundColor:'rgba(78,207,160,0.1)',
+        borderWidth:2.5,
+        pointRadius:4,
+        pointHoverRadius:6,
+        fill:true,
+        tension:0.3
+      }],{
+        plugins:{legend:{display:false}},
+        scales:{y:{ticks:{callback:function(v){return v+'%';}}}}
+      });
+    } else emptyChart(tid+'-rfttrd');
+
     // Cumulative line
     if (cumLabels.length) {
       makeChart('chart-'+tid+'-cumul','line',cumLabels,[{
@@ -2386,6 +2450,19 @@ function rowHTML(tid, row, i, isDel) {
     '</td>';
   }
 
+  // Number fields: simple numeric input (PR Errors, QA Errors)
+  function numCell(field, value, placeholder) {
+    var meta   = row._cellMeta && row._cellMeta[field];
+    var dotId3 = 'ad-' + tid + '-' + row.id + '-' + field;
+    if (meta && meta.length) _auditRegistry[dotId3] = meta;
+    var dot    = meta && meta.length ? '<span class="audit-dot" onclick="showAuditPopover(event,\'' + dotId3 + '\')" title="Edit history"></span>' : '';
+    return '<td style="position:relative;text-align:center;">' +
+      '<input type="number" class="num-input" min="0" step="1" placeholder="' + placeholder + '" value="' + esc(value != null ? String(value) : '') + '" ' +
+        'onblur="updNum(\'' + tid + '\',' + row.id + ',\'' + field + '\',this.value)">' +
+      dot +
+    '</td>';
+  }
+
   // Text fields: contenteditable div — strikethrough applied to selected text
   function textTd(field, html, placeholder, suffix) {
     var meta   = row._cellMeta && row._cellMeta[field];
@@ -2452,6 +2529,8 @@ function rowHTML(tid, row, i, isDel) {
       case 'initialReviewDate': return dateCell('initialReviewDate', row.initialReviewDate, 'MM/DD/YYYY');
       case 'correctionsDate':   return dateCell('correctionsDate', row.correctionsDate, 'MM/DD/YYYY');
       case 'reviewCompleteDate':return dateCell('reviewCompleteDate', row.reviewCompleteDate, 'MM/DD/YYYY');
+      case 'prErrors':          return numCell('prErrors', row.prErrors, '0');
+      case 'qaErrors':          return numCell('qaErrors', row.qaErrors, '0');
       default: return '';
     }
   }).join('');
@@ -2580,6 +2659,20 @@ function calcRowHTML(tid, row, isDel) {
   }
   if (!dispCell) dispCell = '<td class="ca" style="color:var(--txt3);">—</td>';
 
+  // RFT % — (Total Transactions - PR Errors - QA Errors) / Total Transactions * 100
+  var TRANSACTIONS = { imm: 4498, prompt: 4373, biofire: 4000 };
+  var totalTx = TRANSACTIONS[tid] || 0;
+  var prErr = (row.prErrors === '' || row.prErrors == null) ? 0 : parseInt(row.prErrors, 10) || 0;
+  var qaErr = (row.qaErrors === '' || row.qaErrors == null) ? 0 : parseInt(row.qaErrors, 10) || 0;
+  var rftPct = totalTx > 0 ? Math.max(0, (totalTx - prErr - qaErr) / totalTx * 100) : null;
+  var rftCell = rftPct !== null
+    ? '<td class="ca"><div style="text-align:center;">' +
+        '<span style="font-family:var(--aptos);font-size:var(--fs);color:' + (rftPct >= 99.9 ? 'var(--green-txt)' : (rftPct >= 99 ? '#f0c040' : '#e05a5a')) + ';font-weight:500;">' +
+          (Math.round(rftPct * 100) / 100) + '%' +
+        '</span>' +
+      '</div></td>'
+    : '<td class="ca" style="color:var(--txt3);">—</td>';
+
   var calcCols = T[tid].calcColOrder || DEFAULT_CALC_COLS[tid];
   return calcCols.map(function(colKey) {
     switch(colKey) {
@@ -2590,6 +2683,7 @@ function calcRowHTML(tid, row, isDel) {
       case 'dQA':           return cCell(dQA);
       case 'dQC':           return tid !== 'imm' ? cCell(dQC) : '';
       case 'dRR':           return cCell(dRR);
+      case 'rftCell':       return rftCell;
       case 'dispCell':      return dispCell;
       case 'corrCell':      return corrCell;
       default: return '';
@@ -2603,14 +2697,14 @@ function calcRowHTML(tid, row, isDel) {
 // ================================================================
 
 var DEFAULT_DATA_COLS = {
-  imm:    ['lotNumbers','dateIssued','dateManufactured','prInitialReview','dateReturned','dateQAReturned','initialReviewDate','correctionsDate','reviewCompleteDate'],
-  prompt: ['lotNumbers','dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC','initialReviewDate','correctionsDate','reviewCompleteDate'],
-  biofire:['lotNumbers','dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC','initialReviewDate','correctionsDate','reviewCompleteDate']
+  imm:    ['lotNumbers','dateIssued','dateManufactured','prInitialReview','dateReturned','dateQAReturned','initialReviewDate','correctionsDate','reviewCompleteDate','prErrors','qaErrors'],
+  prompt: ['lotNumbers','dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC','initialReviewDate','correctionsDate','reviewCompleteDate','prErrors','qaErrors'],
+  biofire:['lotNumbers','dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC','initialReviewDate','correctionsDate','reviewCompleteDate','prErrors','qaErrors']
 };
 var DEFAULT_CALC_COLS = {
-  imm:    ['erLirNumber','lirNcrNumber','dIR','dQA','dRR','dispCell','corrCell'],
-  prompt: ['erLirNumber','lirNcrNumber','sterilityDate','dIR','dQA','dQC','dRR','dispCell','corrCell'],
-  biofire:['erLirNumber','lirNcrNumber','dIR','dQA','dQC','dRR','dispCell','corrCell']
+  imm:    ['erLirNumber','lirNcrNumber','dIR','dQA','dRR','rftCell','dispCell','corrCell'],
+  prompt: ['erLirNumber','lirNcrNumber','sterilityDate','dIR','dQA','dQC','dRR','rftCell','dispCell','corrCell'],
+  biofire:['erLirNumber','lirNcrNumber','dIR','dQA','dQC','dRR','rftCell','dispCell','corrCell']
 };
 var DEFAULT_TITLES = {
   imm:{
@@ -2618,9 +2712,10 @@ var DEFAULT_TITLES = {
     prInitialReview:'PR Initial Review',dateReturned:'QA Initial Review',
     dateQAReturned:'Date Record Returned',initialReviewDate:'QA Review Date',
     correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
+    prErrors:'PR Errors',qaErrors:'QA Errors',
     erLirNumber:'ER Number',lirNcrNumber:'LIR/NCR Number',
     dIR:'PR Review Length',dQA:'QA Review Length',dRR:'Days Returned to Review',
-    dispCell:'Expected Disposition Date',corrCell:'Corrections'
+    rftCell:'RFT %',dispCell:'Expected Disposition Date',corrCell:'Corrections'
   },
   prompt:{
     lotNumbers:'Lot Numbers',dateIssued:'Date Issued',dateManufactured:'Date PR Ended',
@@ -2628,9 +2723,10 @@ var DEFAULT_TITLES = {
     dateQCReturned:'Date QC Returned',dateReviewMR:'PR Review Date',
     dateReviewQC:'QC Review Date',initialReviewDate:'QA Review Date',
     correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
+    prErrors:'PR Errors',qaErrors:'QA Errors',
     erLirNumber:'ER Number',lirNcrNumber:'LIR/NCR Number',sterilityDate:'Sterility Date',
     dIR:'PR Review Length',dQA:'QA Review Length',dQC:'QC Review Length',
-    dRR:'Days Returned to Review',dispCell:'Expected Disposition Date',corrCell:'Corrections'
+    dRR:'Days Returned to Review',rftCell:'RFT %',dispCell:'Expected Disposition Date',corrCell:'Corrections'
   },
   biofire:{
     lotNumbers:'Lot Numbers',dateIssued:'Date Issued',dateManufactured:'Date PR Ended',
@@ -2638,9 +2734,10 @@ var DEFAULT_TITLES = {
     dateQCReturned:'Date QC Returned',dateReviewMR:'PR Review Date',
     dateReviewQC:'QC Review Date',initialReviewDate:'QA Review Date',
     correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
+    prErrors:'PR Errors',qaErrors:'QA Errors',
     erLirNumber:'ER Number',lirNcrNumber:'LIR/NCR Number',
     dIR:'PR Review Length',dQA:'QA Review Length',dQC:'QC Review Length',
-    dRR:'Days Returned to Review',dispCell:'Expected Disposition Date',corrCell:'Corrections'
+    dRR:'Days Returned to Review',rftCell:'RFT %',dispCell:'Expected Disposition Date',corrCell:'Corrections'
   }
 };
 
@@ -3129,6 +3226,19 @@ function upd(tid, id, field, value) {
   r[field] = value;
   scheduleRender(tid);
   collapseRowHeight(tid, id);
+  scheduleSave();
+}
+// Number fields (PR Errors, QA Errors): clamp to non-negative integer
+function updNum(tid, id, field, value) {
+  var s = T[tid];
+  var r = s.rows.find(function(r){ return r.id === id; }) ||
+          s.deleted.find(function(r){ return r.id === id; });
+  if (!r) return;
+  var n = parseInt(value, 10);
+  if (isNaN(n) || n < 0) n = value === '' ? '' : 0;
+  stampAudit(r, field, String(n));
+  r[field] = n;
+  scheduleRender(tid);
   scheduleSave();
 }
 // Contenteditable divs: save innerHTML so struck spans are preserved
