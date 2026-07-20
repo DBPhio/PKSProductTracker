@@ -751,6 +751,64 @@ function initFirebaseListeners() {
   }
 }
 
+// Merge a saved column order with the current default — inserts any newly
+// added columns (like prErrors/qaErrors/rftCell) at their correct default
+// position, while preserving the user's custom order for existing columns.
+function reconcileOrder(saved, def) {
+  var savedSet = {};
+  saved.forEach(function(k){ savedSet[k] = true; });
+  var missing = def.filter(function(k){ return !savedSet[k]; });
+  if (!missing.length) return saved.slice();
+  var result = saved.slice();
+  missing.forEach(function(key) {
+    var defIdx = def.indexOf(key);
+    var insertAt = result.length; // fallback: append at end
+    for (var i = defIdx - 1; i >= 0; i--) {
+      var pos = result.indexOf(def[i]);
+      if (pos !== -1) { insertAt = pos + 1; break; }
+    }
+    result.splice(insertAt, 0, key);
+  });
+  return result;
+}
+
+// Reconcile saved column order + widths against the current schema —
+// prevents newly added columns from silently disappearing for returning
+// users whose Firebase data predates a schema change.
+function reconcileColumns(tid, remote) {
+  var defData = DEFAULT_DATA_COLS[tid];
+  var defCalc = DEFAULT_CALC_COLS[tid];
+  var defW    = (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : tid === 'biofire' ? DEFAULT_COL_W_BIOFIRE : DEFAULT_COL_W);
+
+  var oldDataOrder = (remote.dataColOrder && remote.dataColOrder.length) ? remote.dataColOrder : defData;
+  var oldCalcOrder = (remote.calcColOrder && remote.calcColOrder.length) ? remote.calcColOrder : defCalc;
+  var oldWidths    = (remote.colWidths && remote.colWidths.length) ? remote.colWidths : defW;
+
+  // Map each known column key to its saved width, using the OLD order for positional lookup
+  var widthMap = { __cc: oldWidths[0], __cn: oldWidths[1] };
+  var idx = 2;
+  oldDataOrder.forEach(function(k){ widthMap[k] = oldWidths[idx]; idx++; });
+  oldCalcOrder.forEach(function(k){ widthMap[k] = oldWidths[idx]; idx++; });
+
+  var newDataOrder = reconcileOrder(oldDataOrder, defData);
+  var newCalcOrder = reconcileOrder(oldCalcOrder, defCalc);
+
+  // Default width lookup for brand-new columns not present in the saved widthMap
+  var defWidthMap = { __cc: defW[0], __cn: defW[1] };
+  var di = 2;
+  defData.forEach(function(k){ defWidthMap[k] = defW[di]; di++; });
+  defCalc.forEach(function(k){ defWidthMap[k] = defW[di]; di++; });
+
+  var newWidths = [
+    widthMap.__cc !== undefined ? widthMap.__cc : defWidthMap.__cc,
+    widthMap.__cn !== undefined ? widthMap.__cn : defWidthMap.__cn
+  ];
+  newDataOrder.forEach(function(k){ newWidths.push(widthMap[k] !== undefined ? widthMap[k] : defWidthMap[k]); });
+  newCalcOrder.forEach(function(k){ newWidths.push(widthMap[k] !== undefined ? widthMap[k] : defWidthMap[k]); });
+
+  return { dataColOrder: newDataOrder, calcColOrder: newCalcOrder, colWidths: newWidths };
+}
+
 function applyRemote(payload) {
   IDS.forEach(function(tid) {
     if (!payload.tables || !payload.tables[tid]) return;
@@ -766,10 +824,15 @@ function applyRemote(payload) {
     if (!T[tid].permSelected) T[tid].permSelected = new Set();
     if (!T[tid].colTitles)   T[tid].colTitles = {};
     if (remote.colTitles)    T[tid].colTitles = remote.colTitles;
-    if (remote.dataColOrder) T[tid].dataColOrder = remote.dataColOrder;
-    if (remote.calcColOrder) T[tid].calcColOrder = remote.calcColOrder;
-    if (remote.colWidths && remote.colWidths.length) T[tid].colWidths = remote.colWidths;
-    else if (!T[tid].colWidths) T[tid].colWidths = (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : tid === 'biofire' ? DEFAULT_COL_W_BIOFIRE : DEFAULT_COL_W).slice();
+
+    // Reconcile saved column order/widths with the current schema —
+    // ensures newly added columns (like PR Errors, QA Errors, RFT %)
+    // always appear even for data saved before those columns existed.
+    var reconciled = reconcileColumns(tid, remote);
+    T[tid].dataColOrder = reconciled.dataColOrder;
+    T[tid].calcColOrder = reconciled.calcColOrder;
+    T[tid].colWidths    = reconciled.colWidths;
+
     render(tid, changedIds);
   });
   document.getElementById('sync-time').textContent = 'Updated ' + new Date().toLocaleTimeString();
@@ -3311,6 +3374,7 @@ function applyColWidths(tid) {
     var cg = tbl.querySelector('colgroup');
     if (!cg) { cg = document.createElement('colgroup'); tbl.insertBefore(cg, tbl.firstChild); }
     while (cg.children.length < calcWs.length) cg.appendChild(document.createElement('col'));
+    while (cg.children.length > calcWs.length) cg.removeChild(cg.lastChild);
     calcWs.forEach(function(w,i){ cg.children[i].style.width = w + 'px'; });
   });
 
