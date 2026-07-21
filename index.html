@@ -3703,6 +3703,25 @@ function upd(tid, id, field, value) {
   scheduleSave();
 }
 // Number fields (PR Errors, QA Errors): clamp to non-negative integer
+// Updates just one row's calculated (green section) cells in place —
+// avoids a full panel re-render, which was causing visible jitter/movement
+// whenever a number field (like PR/QA Errors) triggered a recalculation.
+function updateSingleRowCalc(tid, rowId) {
+  var s = T[tid];
+  var row = s.rows.find(function(r){ return r.id === rowId; });
+  var isDel = false;
+  if (!row) { row = s.deleted.find(function(r){ return r.id === rowId; }); isDel = true; }
+  if (!row) { row = s.archived && s.archived.find(function(r){ return r.id === rowId; }); isDel = true; }
+  if (!row) return;
+
+  var ctr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + rowId + '"]') ||
+            document.querySelector('#' + tid + '-calc-tbody tr[data-archid="' + rowId + '"]');
+  if (!ctr) return;
+
+  ctr.innerHTML = calcRowHTML(tid, row, isDel);
+  syncRowHeight(tid, rowId);
+}
+
 function updNum(tid, id, field, value) {
   var s = T[tid];
   var r = s.rows.find(function(r){ return r.id === id; }) ||
@@ -3712,7 +3731,7 @@ function updNum(tid, id, field, value) {
   if (isNaN(n) || n < 0) n = value === '' ? '' : 0;
   stampAudit(r, field, String(n));
   r[field] = n;
-  scheduleRender(tid);
+  updateSingleRowCalc(tid, id);
   scheduleSave();
 }
 // Contenteditable divs: save innerHTML so struck spans are preserved
