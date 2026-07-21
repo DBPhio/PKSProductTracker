@@ -567,9 +567,9 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,108,75,75,108,105,75,75,75,80,108,75]; // 21 cols (IMM)
-const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,108,75,75,105,105,98,75,75,75,75,80,82,75]; // 25 cols (Prompt)
-const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,108,75,75,105,105,75,75,75,75,80,82,75]; // 24 cols (BioFire)
+const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,75,75,108,108,105,75,75,75,80,108,75]; // 21 cols (IMM)
+const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,75,75,108,105,105,98,75,75,75,75,80,82,75]; // 25 cols (Prompt)
+const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,75,75,108,105,105,75,75,75,75,80,82,75]; // 24 cols (BioFire)
 const CALC_COL_COUNT = { imm: 8, prompt: 10, biofire: 9 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
@@ -2774,9 +2774,9 @@ function calcRowHTML(tid, row, isDel) {
 // ================================================================
 
 var DEFAULT_DATA_COLS = {
-  imm:    ['lotNumbers','dateIssued','dateManufactured','prInitialReview','dateReturned','dateQAReturned','initialReviewDate','correctionsDate','reviewCompleteDate','prErrors','qaErrors'],
-  prompt: ['lotNumbers','dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC','initialReviewDate','correctionsDate','reviewCompleteDate','prErrors','qaErrors'],
-  biofire:['lotNumbers','dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC','initialReviewDate','correctionsDate','reviewCompleteDate','prErrors','qaErrors']
+  imm:    ['lotNumbers','dateIssued','dateManufactured','prInitialReview','dateReturned','dateQAReturned','initialReviewDate','correctionsDate','prErrors','qaErrors','reviewCompleteDate'],
+  prompt: ['lotNumbers','dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC','initialReviewDate','correctionsDate','prErrors','qaErrors','reviewCompleteDate'],
+  biofire:['lotNumbers','dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC','initialReviewDate','correctionsDate','prErrors','qaErrors','reviewCompleteDate']
 };
 var DEFAULT_CALC_COLS = {
   imm:    ['erLirNumber','lirNcrNumber','dIR','dQA','dRR','rftCell','dispCell','corrCell'],
