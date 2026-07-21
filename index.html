@@ -389,6 +389,22 @@
       </div>
     </div>
   </div>
+  <!-- Feedback modal (Bug Report / QoL Request) -->
+  <div id="feedback-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:28px 32px;width:400px;display:flex;flex-direction:column;gap:16px;">
+      <div style="font-size:13pt;font-weight:500;color:var(--txt);font-family:var(--aptos);" id="feedback-modal-title">Report a Bug</div>
+      <div style="font-size:10.5pt;color:var(--txt3);font-family:var(--aptos);line-height:1.5;" id="feedback-modal-sub">Describe what happened — the more detail, the easier it is to track down.</div>
+      <textarea id="feedback-text" rows="6" placeholder="Type your message here…"
+        style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--txt);font-size:11pt;font-family:var(--aptos);outline:none;width:100%;resize:vertical;box-sizing:border-box;"
+        oninput="document.getElementById('feedback-err').style.display='none'"></textarea>
+      <div id="feedback-err" style="display:none;font-size:9.5pt;color:var(--red-txt);font-family:var(--aptos);">Please enter a message before submitting.</div>
+      <div id="feedback-success" style="display:none;font-size:10.5pt;color:var(--green-txt);font-family:var(--aptos);">✓ Thanks! Your message has been sent.</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn" onclick="closeFeedbackModal()" style="min-width:80px;">Cancel</button>
+        <button class="btn" id="feedback-submit-btn" onclick="submitFeedback()" style="min-width:100px;border-color:var(--green);color:var(--green-txt);">Submit</button>
+      </div>
+    </div>
+  </div>
   <!-- Search bar (Ctrl+F) -->
   <div class="search-bar" id="search-bar">
     <input class="search-input" id="search-input" type="text" placeholder="Search all panels…" autocomplete="off"
@@ -1367,6 +1383,76 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
     console.error('Report generation failed:', err);
     alert('Something went wrong generating the report. Please try again.');
   });
+}
+
+// ================================================================
+//  FEATURE: BUG REPORT / QOL REQUEST
+// ================================================================
+var _feedbackType = 'bug';
+
+function openFeedbackModal(type) {
+  closeSettingsMenu();
+  _feedbackType = type;
+  var titleEl = document.getElementById('feedback-modal-title');
+  var subEl   = document.getElementById('feedback-modal-sub');
+  if (type === 'bug') {
+    titleEl.textContent = 'Report a Bug';
+    subEl.textContent   = 'Describe what happened — the more detail, the easier it is to track down.';
+  } else {
+    titleEl.textContent = 'Request a QoL Improvement';
+    subEl.textContent   = 'What would make this app easier or better to use?';
+  }
+  document.getElementById('feedback-text').value = '';
+  document.getElementById('feedback-err').style.display = 'none';
+  document.getElementById('feedback-success').style.display = 'none';
+  document.getElementById('feedback-submit-btn').style.display = 'inline-block';
+  document.getElementById('feedback-modal').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('feedback-text').focus(); }, 50);
+}
+
+function closeFeedbackModal() {
+  document.getElementById('feedback-modal').style.display = 'none';
+}
+
+function submitFeedback() {
+  var textEl = document.getElementById('feedback-text');
+  var msg = textEl.value.trim();
+  if (!msg) {
+    document.getElementById('feedback-err').style.display = 'block';
+    textEl.focus();
+    return;
+  }
+  if (!fbDatabase) {
+    document.getElementById('feedback-err').textContent = 'Not connected yet — please try again in a moment.';
+    document.getElementById('feedback-err').style.display = 'block';
+    return;
+  }
+  var entry = {
+    type: _feedbackType,
+    message: msg,
+    userEmail: currentUser ? (currentUser.email || 'unknown') : 'unknown',
+    userName:  currentUser ? (currentUser.displayName || currentUser.email || 'unknown') : 'unknown',
+    panel: _activeTab,
+    timestamp: Date.now(),
+    submittedAt: new Date().toLocaleString()
+  };
+  var submitBtn = document.getElementById('feedback-submit-btn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Sending…';
+
+  fbDatabase.ref('qa-tracker/feedback').push(entry)
+    .then(function() {
+      document.getElementById('feedback-success').style.display = 'block';
+      submitBtn.style.display = 'none';
+      setTimeout(closeFeedbackModal, 1400);
+    })
+    .catch(function(err) {
+      console.error('Feedback submission failed:', err);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit';
+      document.getElementById('feedback-err').textContent = 'Something went wrong sending your message — please try again.';
+      document.getElementById('feedback-err').style.display = 'block';
+    });
 }
 
 function confirmClearAll() {
@@ -4699,6 +4785,9 @@ document.addEventListener('mouseup', function(e) {
   <div class="settings-menu" id="settings-menu" style="display:none;position:fixed;z-index:2147483647;">
     <button class="settings-item" id="compact-menu-item" onclick="toggleCompact()">⇕ <span id="compact-menu-label">Compact View</span></button>
     <button class="settings-item" onclick="exportAllPanelsCSV()">⬇ Export to CSV</button>
+    <div class="settings-divider"></div>
+    <button class="settings-item" onclick="openFeedbackModal('bug')">🐛 Report a Bug</button>
+    <button class="settings-item" onclick="openFeedbackModal('qol')">💡 Request a QoL Improvement</button>
     <div class="settings-divider"></div>
     <button class="settings-item settings-item-danger" onclick="confirmClearAll()">✕ Clear All Data</button>
   </div>
