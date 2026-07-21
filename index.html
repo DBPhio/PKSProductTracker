@@ -117,6 +117,7 @@
   .badge{font-size:11.5pt;padding:1px 7px;border-radius:99px;background:var(--bg2);border:1px solid var(--border);color:var(--txt2);font-family:var(--aptos);}
   .badge-del{background:var(--red-bg);color:var(--red-txt);border-color:var(--red-border);}
   .btn{font-size:11.5pt;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--txt);cursor:pointer;font-family:var(--aptos);white-space:nowrap;}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;}
   .btn:hover{background:#3a3a3a;}
   .btn-d{border-color:#c0392b;color:var(--red-txt);}
   .btn-d:hover{background:var(--red-bg);}
@@ -1644,7 +1645,7 @@ function switchTab(tab) {
 }
 
 // ── Quarter selector state & controls ──────────────────────────
-var _selectedQuarter = getCurrentQuarter(); // {q, y} or 'all'
+var _selectedQuarter = 'all'; // {q, y} or 'all' — defaults to All Time
 
 function populateQuarterSelect() {
   var sel = document.getElementById('quarter-select');
@@ -1653,11 +1654,14 @@ function populateQuarterSelect() {
   var quarters = getSelectableQuarters();
   var html = quarters.map(function(qy, i) {
     var isCurrent = i === 0;
-    return '<option value="' + qy.q + '-' + qy.y + '"' + (isCurrent ? ' selected' : '') + '>' +
+    return '<option value="' + qy.q + '-' + qy.y + '">' +
       quarterLabel(qy.q, qy.y) + (isCurrent ? ' (current)' : '') + '</option>';
   }).join('');
-  html += '<option value="all">All Time</option>';
+  html += '<option value="all" selected>All Time</option>';
   sel.innerHTML = html;
+  // Match the initial disabled state of the report button to the default selection
+  var reportBtn = document.getElementById('report-btn');
+  if (reportBtn) reportBtn.disabled = (_selectedQuarter === 'all');
 }
 
 function onQuarterChange() {
