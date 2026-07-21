@@ -772,6 +772,20 @@ function reconcileOrder(saved, def) {
   return result;
 }
 
+// Force a set of keys to sit immediately before a target key, regardless
+// of their current position — used to correct column placement for users
+// whose saved order predates a positional change.
+function enforceOrderConstraint(order, beforeKeys, afterKey) {
+  if (order.indexOf(afterKey) === -1) return order;
+  var result = order.filter(function(k){ return beforeKeys.indexOf(k) === -1; });
+  var insertAt = result.indexOf(afterKey);
+  if (insertAt === -1) return order;
+  beforeKeys.forEach(function(k, i) {
+    if (order.indexOf(k) !== -1) result.splice(insertAt + i, 0, k);
+  });
+  return result;
+}
+
 // Reconcile saved column order + widths against the current schema —
 // prevents newly added columns from silently disappearing for returning
 // users whose Firebase data predates a schema change.
@@ -806,6 +820,12 @@ function reconcileColumns(tid, remote) {
 
   var newDataOrder = reconcileOrder(oldDataOrder, defData);
   var newCalcOrder = reconcileOrder(oldCalcOrder, defCalc);
+
+  // Enforce a fixed relative position for PR Errors / QA Errors — they must
+  // sit immediately before Review Complete Date, regardless of where they
+  // were previously saved (reconcileOrder only handles brand-new columns,
+  // it won't re-sort ones that already exist in saved data).
+  newDataOrder = enforceOrderConstraint(newDataOrder, ['prErrors','qaErrors'], 'reviewCompleteDate');
 
   // Default width lookup for brand-new columns not present in the saved widthMap
   var defWidthMap = { __cc: defW[0], __cn: defW[1] };
