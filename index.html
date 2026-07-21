@@ -195,6 +195,17 @@
   .view-toggle-btn{font-size:10pt;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--txt3);cursor:pointer;font-family:var(--aptos);transition:all .15s;}
   .view-toggle-btn:hover{border-color:var(--green);color:var(--green-txt);}
   .view-toggle-btn.active{border-color:var(--green);color:var(--green-txt);background:var(--green-bg);}
+  .settings-wrap{position:relative;}
+  .gear-btn{background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--txt3);cursor:pointer;font-size:13pt;width:28px;height:26px;display:flex;align-items:center;justify-content:center;transition:border-color .15s,color .15s,transform .2s;}
+  .gear-btn:hover{border-color:var(--green);color:var(--green-txt);}
+  .gear-btn.active{border-color:var(--green);color:var(--green-txt);transform:rotate(45deg);}
+  .settings-menu{display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:5px;min-width:190px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:200;flex-direction:column;gap:2px;}
+  .settings-menu.open{display:flex;}
+  .settings-item{display:flex;align-items:center;gap:8px;background:transparent;border:none;border-radius:5px;color:var(--txt2);font-size:10.5pt;font-family:var(--aptos);padding:7px 10px;cursor:pointer;text-align:left;transition:background .12s;}
+  .settings-item:hover{background:var(--bg2);}
+  .settings-item-danger{color:var(--del-txt,#e05a5a);}
+  .settings-item-danger:hover{background:rgba(224,90,90,0.1);}
+  .settings-divider{height:1px;background:var(--border);margin:3px 2px;}
 
   /* ── Save indicator ── */
   .save-indicator{font-size:9.5pt;font-family:var(--aptos);padding:2px 8px;border-radius:4px;transition:opacity .4s;}
@@ -235,6 +246,10 @@
   .divrow-inner{display:flex;align-items:center;justify-content:flex-start;gap:8px;}
   .disp-collapse-btn{background:transparent;border:1px solid var(--del-txt);border-radius:4px;color:var(--del-txt);cursor:pointer;font-size:9pt;width:20px;height:20px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;order:-1;margin-right:4px;transition:background .12s;}
   .disp-collapse-btn:hover{background:var(--del-bg);}
+  tr.archive-divrow td{background:#1a2530;color:#7fa8c9;}
+  tr.archive-divrow .disp-collapse-btn{border-color:#7fa8c9;color:#7fa8c9;}
+  tr.archive-divrow .disp-collapse-btn:hover{background:#22354a;}
+  tr.arch-row-selected td{background:#16222c!important;outline:1px solid #4d7ea3;}
   .btn-perm-del{font-size:10pt;padding:2px 10px;border-radius:4px;border:1px solid var(--red-border);background:transparent;color:var(--red-txt);cursor:pointer;font-family:var(--aptos);white-space:nowrap;transition:background .15s;}
   .btn-perm-del:hover{background:var(--red-bg);}
   tr.del-row-selected td{background:#2a1a1a!important;outline:1px solid var(--red-border);}
@@ -335,8 +350,15 @@
       <div class="disp-ticker" id="disp-ticker"></div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-      <button class="view-toggle-btn" id="compact-btn" onclick="toggleCompact()" title="Toggle compact/comfortable row height">⇕ Compact</button>
-      <button class="btn btn-d" onclick="confirmClearAll()" title="Clear all data from all panels">✕ Clear All</button>
+      <div class="settings-wrap" id="settings-wrap">
+        <button class="gear-btn" id="gear-btn" onclick="toggleSettingsMenu(event)" title="Settings">⚙</button>
+        <div class="settings-menu" id="settings-menu">
+          <button class="settings-item" id="compact-menu-item" onclick="toggleCompact()">⇕ <span id="compact-menu-label">Compact View</span></button>
+          <button class="settings-item" onclick="exportAllPanelsCSV()">⬇ Export to CSV</button>
+          <div class="settings-divider"></div>
+          <button class="settings-item settings-item-danger" onclick="confirmClearAll()">✕ Clear All Data</button>
+        </div>
+      </div>
       <div class="presence-wrap" id="presence-wrap">
         <span style="color:var(--green-txt);font-size:11.5pt" id="sync-users"></span>
       </div>
@@ -399,7 +421,7 @@
           <span class="panel-stat" id="imm-stat"></span>
         </div>
         <div class="panel-actions">
-          <button class="btn btn-r" id="imm-rbtn" onclick="restoreAll('imm')" style="display:none;font-size:10pt;">Restore <span id="imm-rcount"></span></button><button class="btn-perm-del" id="imm-pdel" onclick="permDeleteSelected('imm')" style="display:none;font-size:10pt;">Delete <span id="imm-pcount"></span> permanently</button>
+          <button class="btn btn-r" id="imm-rbtn" onclick="restoreAll('imm')" style="display:none;font-size:10pt;">Restore <span id="imm-rcount"></span></button><button class="btn-perm-del" id="imm-pdel" onclick="permDeleteSelected('imm')" style="display:none;font-size:10pt;">Delete <span id="imm-pcount"></span> permanently</button><button class="btn btn-r" id="imm-arbtn" onclick="restoreFromArchive('imm')" style="display:none;font-size:10pt;" title="Restore from archive">🗄 Restore <span id="imm-arcount"></span></button>
           <button class="btn btn-d" id="imm-dbtn" onclick="deleteChecked('imm')" style="display:none">Delete</button>
           <button class="btn" onclick="addRow('imm')">+ Row</button>
         </div>
@@ -450,7 +472,7 @@
             <span class="badge badge-del" id="prompt-dbadge" style="display:none"></span>
           </div>
           <div class="panel-actions">
-            <button class="btn btn-r" id="prompt-rbtn" onclick="restoreAll('prompt')" style="display:none;font-size:10pt;">Restore <span id="prompt-rcount"></span></button><button class="btn-perm-del" id="prompt-pdel" onclick="permDeleteSelected('prompt')" style="display:none;font-size:10pt;">Delete <span id="prompt-pcount"></span> permanently</button>
+            <button class="btn btn-r" id="prompt-rbtn" onclick="restoreAll('prompt')" style="display:none;font-size:10pt;">Restore <span id="prompt-rcount"></span></button><button class="btn-perm-del" id="prompt-pdel" onclick="permDeleteSelected('prompt')" style="display:none;font-size:10pt;">Delete <span id="prompt-pcount"></span> permanently</button><button class="btn btn-r" id="prompt-arbtn" onclick="restoreFromArchive('prompt')" style="display:none;font-size:10pt;" title="Restore from archive">🗄 Restore <span id="prompt-arcount"></span></button>
             <button class="btn btn-d" id="prompt-dbtn" onclick="deleteChecked('prompt')" style="display:none">Delete</button>
             <button class="btn" onclick="addRow('prompt')">+ Row</button>
           </div>
@@ -502,7 +524,7 @@
             <span class="badge badge-del" id="biofire-dbadge" style="display:none"></span>
           </div>
           <div class="panel-actions">
-            <button class="btn btn-r" id="biofire-rbtn" onclick="restoreAll('biofire')" style="display:none;font-size:10pt;">Restore <span id="biofire-rcount"></span></button><button class="btn-perm-del" id="biofire-pdel" onclick="permDeleteSelected('biofire')" style="display:none;font-size:10pt;">Delete <span id="biofire-pcount"></span> permanently</button>
+            <button class="btn btn-r" id="biofire-rbtn" onclick="restoreAll('biofire')" style="display:none;font-size:10pt;">Restore <span id="biofire-rcount"></span></button><button class="btn-perm-del" id="biofire-pdel" onclick="permDeleteSelected('biofire')" style="display:none;font-size:10pt;">Delete <span id="biofire-pcount"></span> permanently</button><button class="btn btn-r" id="biofire-arbtn" onclick="restoreFromArchive('biofire')" style="display:none;font-size:10pt;" title="Restore from archive">🗄 Restore <span id="biofire-arcount"></span></button>
             <button class="btn btn-d" id="biofire-dbtn" onclick="deleteChecked('biofire')" style="display:none">Delete</button>
             <button class="btn" onclick="addRow('biofire')">+ Row</button>
           </div>
@@ -578,14 +600,17 @@ IDS.forEach(function(tid) {
   T[tid] = {
     rows:      [mkRow(1), mkRow(2), mkRow(3)],
     deleted:   [],
+    archived:  [],
     nextId:    4,
     restored:  new Set(),
     permSelected: new Set(),
+    archiveSelected: new Set(),
     colWidths: (tid === 'prompt' ? DEFAULT_COL_W_PROMPT : tid === 'biofire' ? DEFAULT_COL_W_BIOFIRE : DEFAULT_COL_W).slice(),
     colTitles: {},
     dataColOrder: null,
     calcColOrder: null,
-    dispCollapsed: true
+    dispCollapsed: true,
+    archiveCollapsed: true
   };
 });
 
@@ -843,6 +868,26 @@ function reconcileColumns(tid, remote) {
   return { dataColOrder: newDataOrder, calcColOrder: newCalcOrder, colWidths: newWidths };
 }
 
+// ================================================================
+//  FEATURE: ARCHIVE OLD DISPOSITIONED ROWS
+// ================================================================
+var ARCHIVE_AGE_DAYS = 90;
+
+function runArchiveSweep(tid) {
+  var s = T[tid];
+  if (!s.deleted || !s.deleted.length) return;
+  var toArchive = [];
+  s.deleted.forEach(function(r) {
+    if (!r._dispositionedAt) return;
+    var age = dSince(r._dispositionedAt);
+    if (age !== null && age >= ARCHIVE_AGE_DAYS) toArchive.push(r);
+  });
+  if (!toArchive.length) return;
+  s.deleted = s.deleted.filter(function(r){ return toArchive.indexOf(r) === -1; });
+  if (!s.archived) s.archived = [];
+  s.archived = s.archived.concat(toArchive);
+}
+
 function applyRemote(payload) {
   IDS.forEach(function(tid) {
     if (!payload.tables || !payload.tables[tid]) return;
@@ -854,8 +899,10 @@ function applyRemote(payload) {
       .map(function(r){ return r.id; });
     T[tid].rows    = (remote.rows || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
     T[tid].deleted = (remote.deleted || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
+    T[tid].archived = (remote.archived || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
     T[tid].nextId  = remote.nextId  || T[tid].nextId;
-    if (!T[tid].permSelected) T[tid].permSelected = new Set();
+    if (!T[tid].permSelected)   T[tid].permSelected = new Set();
+    if (!T[tid].archiveSelected) T[tid].archiveSelected = new Set();
     if (!T[tid].colTitles)   T[tid].colTitles = {};
     if (remote.colTitles)    T[tid].colTitles = remote.colTitles;
 
@@ -866,6 +913,9 @@ function applyRemote(payload) {
     T[tid].dataColOrder = reconciled.dataColOrder;
     T[tid].calcColOrder = reconciled.calcColOrder;
     T[tid].colWidths    = reconciled.colWidths;
+
+    // Sweep dispositioned rows older than the archive threshold into Archive
+    runArchiveSweep(tid);
 
     render(tid, changedIds);
   });
@@ -890,6 +940,7 @@ function pushToFirebase() {
     payload.tables[tid] = {
       rows:          T[tid].rows,
       deleted:       T[tid].deleted,
+      archived:      T[tid].archived || [],
       nextId:        T[tid].nextId,
       colTitles:     T[tid].colTitles    || {},
       dataColOrder:  T[tid].dataColOrder || null,
@@ -926,7 +977,101 @@ function mkRow(id) {
   return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', lotChecks:{}, erLirNumber:'', lirNcrNumber:'', prInitialReview:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, prErrors:'', qaErrors:'', done:false, strikes:{}, _cellMeta:{} };
 }
 
+// ================================================================
+//  FEATURE: EXPORT TO CSV
+// ================================================================
+function csvEscape(val) {
+  if (val === null || val === undefined) return '';
+  var s = String(val).replace(/<[^>]+>/g, ''); // strip any HTML
+  s = s.replace(/"/g, '""');
+  if (/[",\n]/.test(s)) return '"' + s + '"';
+  return s;
+}
+
+function buildCsvForPanel(tid) {
+  var s = T[tid];
+  var panelName = { imm:'IMM', prompt:'Prompt', biofire:'BioFire' }[tid];
+  var allRows = (s.rows || []).concat(s.deleted || [], s.archived || []);
+
+  var dataCols = s.dataColOrder || DEFAULT_DATA_COLS[tid];
+  var calcCols = ['erLirNumber','lirNcrNumber','dIR','dQA'].concat(tid !== 'imm' ? ['dQC'] : []).concat(['dRR']);
+
+  var headers = ['Status'].concat(
+    dataCols.map(function(k){ return getColTitle(tid, k); }),
+    ['ER Number','LIR/NCR Number','PR Review Length (days)','QA Review Length (days)'],
+    tid !== 'imm' ? ['QC Review Length (days)'] : [],
+    ['Days Returned to Review (days)','RFT %','Dispositioned Date']
+  );
+
+  var TRANSACTIONS = { imm: 4498, prompt: 4373, biofire: 4000 };
+  var totalTx = TRANSACTIONS[tid] || 0;
+
+  var rows = allRows.map(function(r) {
+    var status = (s.archived || []).indexOf(r) !== -1 ? 'Archived' :
+                 (s.deleted  || []).indexOf(r) !== -1 ? 'Dispositioned' : 'Active';
+
+    var dataVals = dataCols.map(function(k) {
+      if (k === 'lotNumbers') return (r.lotNumbers || '').replace(/<[^>]+>/g,'');
+      if (k === 'correctionsComplete') return r.correctionsComplete ? 'Yes' : 'No';
+      return r[k] != null ? r[k] : '';
+    });
+
+    var dIR = tid === 'imm' ? dBetween(r.prInitialReview, r.dateQAReturned) : dBetween(r.dateManufactured, r.dateReturned);
+    var dQA = tid === 'imm' ? dBetween(r.initialReviewDate, r.reviewCompleteDate) : dBetween(r.dateQAReturned, r.initialReviewDate);
+    var dQC = tid !== 'imm' ? dBetween(r.dateReviewQC, r.dateQCReturned) : null;
+    var dRR = dBetween(r.dateReturned, r.reviewCompleteDate);
+
+    var prErr = (r.prErrors === '' || r.prErrors == null) ? 0 : parseInt(r.prErrors, 10) || 0;
+    var qaErr = (r.qaErrors === '' || r.qaErrors == null) ? 0 : parseInt(r.qaErrors, 10) || 0;
+    var rftPct = totalTx > 0 ? Math.round(Math.max(0, (totalTx - prErr - qaErr) / totalTx * 100) * 100) / 100 : '';
+
+    var calcVals = [
+      (r.erLirNumber || '').replace(/<[^>]+>/g,''),
+      (r.lirNcrNumber || '').replace(/<[^>]+>/g,''),
+      dIR !== null ? dIR : '',
+      dQA !== null ? dQA : ''
+    ];
+    if (tid !== 'imm') calcVals.push(dQC !== null ? dQC : '');
+    calcVals.push(dRR !== null ? dRR : '', rftPct, r._dispositionedAt || '');
+
+    return [status].concat(dataVals, calcVals);
+  });
+
+  var lines = [headers.map(csvEscape).join(',')];
+  rows.forEach(function(row){ lines.push(row.map(csvEscape).join(',')); });
+  return { filename: panelName + '_export_' + todayStamp() + '.csv', content: lines.join('\r\n') };
+}
+
+function todayStamp() {
+  var d = new Date();
+  var m = d.getMonth()+1, day = d.getDate(), y = d.getFullYear();
+  return y + '-' + (m<10?'0'+m:m) + '-' + (day<10?'0'+day:day);
+}
+
+function downloadCsv(filename, content) {
+  var blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+function exportAllPanelsCSV() {
+  closeSettingsMenu();
+  IDS.forEach(function(tid, i) {
+    setTimeout(function() {
+      var csv = buildCsvForPanel(tid);
+      downloadCsv(csv.filename, csv.content);
+    }, i * 300); // stagger downloads so the browser doesn't block them as popups
+  });
+}
+
 function confirmClearAll() {
+  closeSettingsMenu();
   var modal = document.getElementById('clear-modal');
   document.getElementById('clear-pw').value = '';
   document.getElementById('clear-pw-err').style.display = 'none';
@@ -950,8 +1095,10 @@ function clearAllData() {
   IDS.forEach(function(tid) {
     T[tid].rows      = [];
     T[tid].deleted   = [];
+    T[tid].archived  = [];
     T[tid].nextId    = 1;
     T[tid].permSelected.clear();
+    T[tid].archiveSelected.clear();
     T[tid].restored.clear();
     scheduleRender(tid);
   });
@@ -1269,7 +1416,8 @@ function getRowSearchText(tid, rowId) {
   // Get text from the in-memory data model — avoids reading UI chrome
   var s = T[tid];
   var row = s.rows.find(function(r){ return r.id === rowId; }) ||
-            s.deleted.find(function(r){ return r.id === rowId; });
+            s.deleted.find(function(r){ return r.id === rowId; }) ||
+            (s.archived && s.archived.find(function(r){ return r.id === rowId; }));
   if (!row) return '';
   return SEARCH_FIELDS.map(function(f) {
     var v = row[f] || '';
@@ -1282,8 +1430,8 @@ function runSearch(q) {
   _searchMatches = [];
 
   IDS.forEach(function(tid) {
-    document.querySelectorAll('#' + tid + '-tbody tr[data-id], #' + tid + '-tbody tr[data-delid]').forEach(function(tr) {
-      var rowId = parseInt(tr.dataset.id || tr.dataset.delid, 10);
+    document.querySelectorAll('#' + tid + '-tbody tr[data-id], #' + tid + '-tbody tr[data-delid], #' + tid + '-tbody tr[data-archid]').forEach(function(tr) {
+      var rowId = parseInt(tr.dataset.id || tr.dataset.delid || tr.dataset.archid, 10);
       var text  = getRowSearchText(tid, rowId);
       if (!text.includes(ql)) return;
       tr.classList.add('search-match');
@@ -1319,6 +1467,11 @@ function activateMatch(idx) {
   var isDispositionedRow = m.tr.dataset.delid !== undefined;
   if (isDispositionedRow && T[m.tid] && T[m.tid].dispCollapsed) {
     toggleDispCollapse(m.tid);
+  }
+  // Same for archived rows
+  var isArchivedRow = m.tr.dataset.archid !== undefined;
+  if (isArchivedRow && T[m.tid] && T[m.tid].archiveCollapsed) {
+    toggleArchiveCollapse(m.tid);
   }
 
   var wrap = document.getElementById(m.tid + '-tbody-wrap');
@@ -2007,14 +2160,50 @@ var _isCompact = false;
 function toggleCompact() {
   _isCompact = !_isCompact;
   document.body.classList.toggle('compact', _isCompact);
-  var btn = document.getElementById('compact-btn');
-  btn.classList.toggle('active', _isCompact);
-  btn.textContent = _isCompact ? '⇕ Comfortable' : '⇕ Compact';
+  var label = document.getElementById('compact-menu-label');
+  if (label) label.textContent = _isCompact ? 'Comfortable View' : 'Compact View';
+  closeSettingsMenu();
   // Force every row to recalculate its height under the new padding —
   // syncCalcRowHeights only fixes mismatched rows, so a full clear+remeasure
   // is needed here since ALL rows need to resize, not just mismatched ones.
   IDS.forEach(function(tid){ recalcAllRowHeights(tid); });
 }
+
+// ================================================================
+//  FEATURE: SETTINGS GEAR DROPDOWN
+// ================================================================
+function toggleSettingsMenu(e) {
+  e.stopPropagation();
+  var menu = document.getElementById('settings-menu');
+  var btn  = document.getElementById('gear-btn');
+  var opening = !menu.classList.contains('open');
+  menu.classList.toggle('open', opening);
+  btn.classList.toggle('active', opening);
+}
+function closeSettingsMenu() {
+  var menu = document.getElementById('settings-menu');
+  var btn  = document.getElementById('gear-btn');
+  if (menu) menu.classList.remove('open');
+  if (btn) btn.classList.remove('active');
+}
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('settings-wrap');
+  var menu = document.getElementById('settings-menu');
+  if (!wrap || !menu.classList.contains('open')) return;
+  if (!wrap.contains(e.target)) {
+    menu.classList.remove('open');
+    document.getElementById('gear-btn').classList.remove('active');
+  }
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var menu = document.getElementById('settings-menu');
+    if (menu && menu.classList.contains('open')) {
+      menu.classList.remove('open');
+      document.getElementById('gear-btn').classList.remove('active');
+    }
+  }
+});
 
 // Clears every row's locked height and remeasures it under current CSS —
 // used when something global changes cell sizing (e.g. compact mode toggle).
@@ -2071,9 +2260,10 @@ function pushUndoState() {
   var snapshot = {};
   IDS.forEach(function(tid) {
     snapshot[tid] = {
-      rows:    JSON.parse(JSON.stringify(T[tid].rows)),
-      deleted: JSON.parse(JSON.stringify(T[tid].deleted)),
-      nextId:  T[tid].nextId
+      rows:     JSON.parse(JSON.stringify(T[tid].rows)),
+      deleted:  JSON.parse(JSON.stringify(T[tid].deleted)),
+      archived: JSON.parse(JSON.stringify(T[tid].archived || [])),
+      nextId:   T[tid].nextId
     };
   });
   _undoStack.push(snapshot);
@@ -2084,9 +2274,10 @@ function undoLast() {
   if (_undoStack.length === 0) return;
   var snapshot = _undoStack.pop();
   IDS.forEach(function(tid) {
-    T[tid].rows    = snapshot[tid].rows;
-    T[tid].deleted = snapshot[tid].deleted;
-    T[tid].nextId  = snapshot[tid].nextId;
+    T[tid].rows     = snapshot[tid].rows;
+    T[tid].deleted  = snapshot[tid].deleted;
+    T[tid].archived = snapshot[tid].archived || [];
+    T[tid].nextId   = snapshot[tid].nextId;
     scheduleRender(tid);
   });
   scheduleSave();
@@ -2671,8 +2862,21 @@ function rowHTML(tid, row, i, isDel) {
     }
   }).join('');
 
+  var isArch = isDel && T[tid].archived && T[tid].archived.some(function(r){ return r.id === row.id; });
+  var ccChecked, ccHandler;
+  if (isArch) {
+    ccChecked = T[tid].archiveSelected.has(row.id) ? ' checked' : '';
+    ccHandler = 'toggleArchiveRow(\'' + tid + '\',' + row.id + ',this)';
+  } else if (isDel) {
+    ccChecked = T[tid].permSelected.has(row.id) ? ' checked' : '';
+    ccHandler = 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)';
+  } else {
+    ccChecked = row.done ? ' checked' : '';
+    ccHandler = 'handleRowCheck(event,\'' + tid + '\',' + row.id + ',this)';
+  }
+
   return (
-    '<td class="cc"><input type="checkbox"' + (isDel ? (T[tid].permSelected.has(row.id) ? ' checked' : '') : (row.done ? ' checked' : '')) + ' onchange="' + (isDel ? 'toggleDelRow(\'' + tid + '\',' + row.id + ',this)' : 'handleRowCheck(event,\'' + tid + '\',' + row.id + ',this)') + '"></td>' +
+    '<td class="cc"><input type="checkbox"' + ccChecked + ' onchange="' + ccHandler + '"></td>' +
     '<td class="cn" style="position:relative;padding:2px 4px;">' + dh + (i+1) + rh + '</td>' +
     cells
   );
@@ -3113,6 +3317,46 @@ function render(tid, remoteIds) {
     });
   }
 
+  if (s.archived && s.archived.length > 0) {
+    var mainColsArch  = T[tid].colWidths.length - CALC_COL_COUNT[tid];
+    var archCollapsed = !!s.archiveCollapsed;
+    // Main archive divider
+    var archDivider = document.createElement('tr');
+    archDivider.className = 'divrow archive-divrow';
+    archDivider.innerHTML = '<td colspan="' + mainColsArch + '"><div class="divrow-inner">' +
+      '<button class="disp-collapse-btn" onclick="toggleArchiveCollapse(\'' + tid + '\')" title="' + (archCollapsed ? 'Expand' : 'Collapse') + ' archived rows">' +
+        (archCollapsed ? '▶' : '▼') +
+      '</button>' +
+      '<span>🗄 Archived (' + s.archived.length + ') — older than ' + ARCHIVE_AGE_DAYS + ' days</span>' +
+      '</div></td>';
+    tbody.appendChild(archDivider);
+    if (calcTbody) {
+      var archCalcDiv = document.createElement('tr');
+      archCalcDiv.className = 'divrow archive-divrow';
+      archCalcDiv.innerHTML = '<td colspan="' + CALC_COL_COUNT[tid] + '"></td>';
+      calcTbody.appendChild(archCalcDiv);
+    }
+    s.archived.forEach(function(row, i) {
+      var opacity = s.archiveSelected.has(row.id) ? '0.7' : '0.4';
+      var tr = document.createElement('tr');
+      tr.style.opacity = opacity;
+      tr.dataset.archid = row.id;
+      if (archCollapsed) tr.style.display = 'none';
+      if (s.archiveSelected.has(row.id)) tr.classList.add('arch-row-selected');
+      tr.innerHTML = rowHTML(tid, row, s.rows.length + s.deleted.length + i, true);
+      tbody.appendChild(tr);
+      if (calcTbody) {
+        var actr = document.createElement('tr');
+        actr.style.opacity = opacity;
+        actr.dataset.archid = row.id;
+        if (archCollapsed) actr.style.display = 'none';
+        if (s.archiveSelected.has(row.id)) actr.classList.add('arch-row-selected');
+        actr.innerHTML = calcRowHTML(tid, row, true);
+        calcTbody.appendChild(actr);
+      }
+    });
+  }
+
   s.restored.clear();
 
   var sa = document.getElementById(tid + '-sa');
@@ -3130,6 +3374,7 @@ function render(tid, remoteIds) {
     renderEmptyState(tid);
     updatePanelStat(tid);
     updateHeaderRestoreButtons(tid);
+    updateHeaderArchiveButtons(tid);
     scheduleIdleWork(tid);
   });
 }
@@ -3194,12 +3439,14 @@ function toggleDelRow(tid, id, cb) {
 function updateHoldBadge(tid, rowId) {
   var s = T[tid];
   var row = s.rows.find(function(r){ return r.id === rowId; }) ||
-            s.deleted.find(function(r){ return r.id === rowId; });
+            s.deleted.find(function(r){ return r.id === rowId; }) ||
+            (s.archived && s.archived.find(function(r){ return r.id === rowId; }));
   if (!row) return;
 
   // Find the lot number cell for this row
   var tr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
-           document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]');
+           document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]') ||
+           document.querySelector('#' + tid + '-tbody tr[data-archid="' + rowId + '"]');
   if (!tr) return;
 
   var lotTd = tr.querySelector('.ci[data-field="lotNumbers"]');
@@ -3254,6 +3501,68 @@ function toggleDispCollapse(tid) {
     btn.title = (collapsed ? 'Expand' : 'Collapse') + ' dispositioned rows';
   }
   syncCalcRowHeights(tid);
+}
+
+function toggleArchiveRow(tid, id, cb) {
+  var s = T[tid];
+  if (cb.checked) {
+    s.archiveSelected.add(id);
+  } else {
+    s.archiveSelected.delete(id);
+  }
+  var tr  = document.querySelector('#' + tid + '-tbody tr[data-archid="' + id + '"]');
+  var ctr = document.querySelector('#' + tid + '-calc-tbody tr[data-archid="' + id + '"]');
+  if (tr)  { tr.classList.toggle('arch-row-selected', cb.checked);  tr.style.opacity  = cb.checked ? '0.7' : '0.4'; }
+  if (ctr) { ctr.classList.toggle('arch-row-selected', cb.checked); ctr.style.opacity = cb.checked ? '0.7' : '0.4'; }
+  updateHeaderArchiveButtons(tid);
+}
+
+function toggleArchiveCollapse(tid) {
+  var s = T[tid];
+  s.archiveCollapsed = !s.archiveCollapsed;
+  var collapsed = s.archiveCollapsed;
+
+  document.querySelectorAll('#' + tid + '-tbody tr[data-archid]').forEach(function(tr) {
+    tr.style.display = collapsed ? 'none' : '';
+  });
+  document.querySelectorAll('#' + tid + '-calc-tbody tr[data-archid]').forEach(function(ctr) {
+    ctr.style.display = collapsed ? 'none' : '';
+  });
+
+  var btn = document.querySelector('#' + tid + '-tbody tr.archive-divrow .disp-collapse-btn');
+  if (btn) {
+    btn.textContent = collapsed ? '▶' : '▼';
+    btn.title = (collapsed ? 'Expand' : 'Collapse') + ' archived rows';
+  }
+  syncCalcRowHeights(tid);
+}
+
+function updateHeaderArchiveButtons(tid) {
+  var s      = T[tid];
+  var count  = s.archiveSelected.size;
+  var rbtn   = document.getElementById(tid + '-arbtn');
+  var rcount = document.getElementById(tid + '-arcount');
+  if (rbtn)   rbtn.style.display = count ? 'inline-block' : 'none';
+  if (rcount) rcount.textContent = count ? count + ' selected' : '';
+}
+
+function restoreFromArchive(tid) {
+  pushUndoState();
+  var s = T[tid];
+  var toRestore = s.archiveSelected.size > 0
+    ? s.archived.filter(function(r){ return s.archiveSelected.has(r.id); })
+    : s.archived.slice();
+  toRestore.forEach(function(r) {
+    delete r._snapIR; delete r._snapQA; delete r._snapQC; delete r._snapRR;
+    delete r._dispositionedAt;
+    s.restored.add(r.id);
+    s.rows.push(r);
+  });
+  var restoreIds = new Set(toRestore.map(function(r){ return r.id; }));
+  s.archived = s.archived.filter(function(r){ return !restoreIds.has(r.id); });
+  s.archiveSelected.clear();
+  scheduleRender(tid); scheduleSave();
+  updateHeaderArchiveButtons(tid);
 }
 
 function updateHeaderRestoreButtons(tid) {
