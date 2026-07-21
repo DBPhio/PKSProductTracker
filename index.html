@@ -199,8 +199,7 @@
   .gear-btn{background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--txt3);cursor:pointer;font-size:13pt;width:28px;height:26px;display:flex;align-items:center;justify-content:center;transition:border-color .15s,color .15s,transform .2s;}
   .gear-btn:hover{border-color:var(--green);color:var(--green-txt);}
   .gear-btn.active{border-color:var(--green);color:var(--green-txt);transform:rotate(45deg);}
-  .settings-menu{display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:5px;min-width:190px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:200;flex-direction:column;gap:2px;}
-  .settings-menu.open{display:flex;}
+  .settings-menu{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:5px;min-width:190px;box-shadow:0 8px 24px rgba(0,0,0,0.5);flex-direction:column;gap:2px;}
   .settings-item{display:flex;align-items:center;gap:8px;background:transparent;border:none;border-radius:5px;color:var(--txt2);font-size:10.5pt;font-family:var(--aptos);padding:7px 10px;cursor:pointer;text-align:left;transition:background .12s;}
   .settings-item:hover{background:var(--bg2);}
   .settings-item-danger{color:var(--del-txt,#e05a5a);}
@@ -352,12 +351,6 @@
     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
       <div class="settings-wrap" id="settings-wrap">
         <button class="gear-btn" id="gear-btn" onclick="toggleSettingsMenu(event)" title="Settings">⚙</button>
-        <div class="settings-menu" id="settings-menu">
-          <button class="settings-item" id="compact-menu-item" onclick="toggleCompact()">⇕ <span id="compact-menu-label">Compact View</span></button>
-          <button class="settings-item" onclick="exportAllPanelsCSV()">⬇ Export to CSV</button>
-          <div class="settings-divider"></div>
-          <button class="settings-item settings-item-danger" onclick="confirmClearAll()">✕ Clear All Data</button>
-        </div>
       </div>
       <div class="presence-wrap" id="presence-wrap">
         <span style="color:var(--green-txt);font-size:11.5pt" id="sync-users"></span>
@@ -2178,31 +2171,43 @@ function toggleSettingsMenu(e) {
   e.stopPropagation();
   var menu = document.getElementById('settings-menu');
   var btn  = document.getElementById('gear-btn');
-  var opening = !menu.classList.contains('open');
-  menu.classList.toggle('open', opening);
-  btn.classList.toggle('active', opening);
+  var opening = menu.style.display === 'none' || !menu.style.display;
+  if (opening) {
+    var rect = btn.getBoundingClientRect();
+    menu.style.display = 'flex';
+    // Position after display is set so offsetWidth is measurable
+    requestAnimationFrame(function() {
+      var mw = menu.offsetWidth;
+      var top  = rect.bottom + 6;
+      var left = Math.max(6, rect.right - mw);
+      menu.style.top  = top + 'px';
+      menu.style.left = left + 'px';
+    });
+    btn.classList.add('active');
+  } else {
+    menu.style.display = 'none';
+    btn.classList.remove('active');
+  }
 }
 function closeSettingsMenu() {
   var menu = document.getElementById('settings-menu');
   var btn  = document.getElementById('gear-btn');
-  if (menu) menu.classList.remove('open');
+  if (menu) menu.style.display = 'none';
   if (btn) btn.classList.remove('active');
 }
 document.addEventListener('click', function(e) {
   var wrap = document.getElementById('settings-wrap');
   var menu = document.getElementById('settings-menu');
-  if (!wrap || !menu.classList.contains('open')) return;
-  if (!wrap.contains(e.target)) {
-    menu.classList.remove('open');
-    document.getElementById('gear-btn').classList.remove('active');
+  if (!wrap || !menu || menu.style.display === 'none' || !menu.style.display) return;
+  if (!wrap.contains(e.target) && !menu.contains(e.target)) {
+    closeSettingsMenu();
   }
 });
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     var menu = document.getElementById('settings-menu');
-    if (menu && menu.classList.contains('open')) {
-      menu.classList.remove('open');
-      document.getElementById('gear-btn').classList.remove('active');
+    if (menu && menu.style.display !== 'none' && menu.style.display) {
+      closeSettingsMenu();
     }
   }
 });
@@ -4046,6 +4051,15 @@ document.addEventListener('mouseup', function(e) {
   <div id="presence-tooltip" style="display:none;position:fixed;z-index:2147483647;background:var(--bg);border:1px solid var(--green);border-radius:8px;padding:8px 12px;min-width:180px;max-height:300px;overflow-y:auto;box-shadow:0 8px 28px rgba(0,0,0,0.8);font-family:'Aptos Narrow','Barlow Condensed',Arial Narrow,sans-serif;">
     <div style="font-size:9pt;color:#888;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">Active now</div>
     <div id="presence-list"></div>
+  </div>
+
+  <!-- Settings menu — must be direct child of body to escape the sync-bar's
+       backdrop-filter stacking context (same issue the presence tooltip had) -->
+  <div class="settings-menu" id="settings-menu" style="display:none;position:fixed;z-index:2147483647;">
+    <button class="settings-item" id="compact-menu-item" onclick="toggleCompact()">⇕ <span id="compact-menu-label">Compact View</span></button>
+    <button class="settings-item" onclick="exportAllPanelsCSV()">⬇ Export to CSV</button>
+    <div class="settings-divider"></div>
+    <button class="settings-item settings-item-danger" onclick="confirmClearAll()">✕ Clear All Data</button>
   </div>
 </body>
 </html>
