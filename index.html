@@ -585,7 +585,7 @@ IDS.forEach(function(tid) {
     colTitles: {},
     dataColOrder: null,
     calcColOrder: null,
-    dispCollapsed: false
+    dispCollapsed: true
   };
 });
 
@@ -1313,6 +1313,13 @@ function activateMatch(idx) {
   var m = _searchMatches[idx];
   if (!m) return;
   m.tr.classList.add('search-match-active');
+
+  // If this match is a dispositioned row and that section is collapsed,
+  // expand it first so the row is actually visible/measurable before scrolling.
+  var isDispositionedRow = m.tr.dataset.delid !== undefined;
+  if (isDispositionedRow && T[m.tid] && T[m.tid].dispCollapsed) {
+    toggleDispCollapse(m.tid);
+  }
 
   var wrap = document.getElementById(m.tid + '-tbody-wrap');
   if (!wrap) return;
