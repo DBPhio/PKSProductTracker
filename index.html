@@ -1081,6 +1081,59 @@ function exportAllPanelsCSV() {
 // ================================================================
 //  FEATURE: QUARTERLY REPORT (Word doc, combined 3-product sections)
 // ================================================================
+// Renders a Chart.js config to a PNG data URL via an off-screen canvas —
+// used to embed real charts into the exported Word report. Report charts
+// need a white background (the doc page is white, unlike the app's dark
+// theme), so a plugin fills white before the chart draws.
+function renderChartToImage(config, width, height) {
+  return new Promise(function(resolve) {
+    var canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.position = 'fixed';
+    canvas.style.left = '-9999px';
+    document.body.appendChild(canvas);
+
+    var whiteBackground = {
+      id: 'whiteBackground',
+      beforeDraw: function(chart) {
+        var ctx = chart.canvas.getContext('2d');
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-over';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, chart.width, chart.height);
+        ctx.restore();
+      }
+    };
+
+    var mergedConfig = JSON.parse(JSON.stringify(config, function(k, v) { return typeof v === 'function' ? undefined : v; }));
+    mergedConfig.options = mergedConfig.options || {};
+    mergedConfig.options.responsive = false;
+    mergedConfig.options.animation = false;
+    mergedConfig.plugins = [whiteBackground];
+
+    var chart = new Chart(canvas, mergedConfig);
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        var dataUrl = canvas.toDataURL('image/png');
+        chart.destroy();
+        document.body.removeChild(canvas);
+        resolve(dataUrl.split(',')[1]); // strip the data: prefix, keep raw base64
+      });
+    });
+  });
+}
+
+function getRecentQuarters(current, count) {
+  var list = [current];
+  var q = current;
+  for (var i = 1; i < count; i++) {
+    q = getPreviousQuarter(q.q, q.y);
+    list.unshift(q);
+  }
+  return list;
+}
+
 function generateQuarterlyReport() {
   if (_selectedQuarter === 'all') {
     alert('Select a specific quarter (not "All Time") to generate a report.');
@@ -1094,70 +1147,200 @@ function generateQuarterlyReport() {
 
   var D = docx;
   var qLabel = quarterLabel(_selectedQuarter.q, _selectedQuarter.y);
+  var GREEN = '1D9E75', BLUE = '6496DC', AMBER = 'F0C040', DARKTXT = '333333', MIDTXT = '666666';
   var PRODUCTS = [
-    { tid: 'imm',     name: 'IMM' },
-    { tid: 'prompt',  name: 'Prompt' },
-    { tid: 'biofire', name: 'BioFire' }
+    { tid: 'imm',     name: 'IMM',     color: GREEN, rgb: 'rgba(29,158,117,1)' },
+    { tid: 'prompt',  name: 'Prompt',  color: BLUE,  rgb: 'rgba(100,150,220,1)' },
+    { tid: 'biofire', name: 'BioFire', color: AMBER, rgb: 'rgba(200,150,20,1)' }
   ];
+  var recentQuarters = getRecentQuarters(_selectedQuarter, 4);
+  var qStats = {}; // tid -> stats for the selected quarter
+  PRODUCTS.forEach(function(p){ qStats[p.tid] = computeQuarterlyStats(p.tid, _selectedQuarter); });
 
-  function statRow(label, value) {
-    return new D.TableRow({
-      children: [
-        new D.TableCell({
-          width: { size: 5200, type: D.WidthType.DXA },
-          shading: { type: D.ShadingType.CLEAR, fill: 'F2F2F2' },
-          children: [new D.Paragraph({ children: [new D.TextRun({ text: label })] })]
-        }),
-        new D.TableCell({
-          width: { size: 2800, type: D.WidthType.DXA },
-          children: [new D.Paragraph({ alignment: D.AlignmentType.RIGHT, children: [new D.TextRun({ text: String(value), bold: true })] })]
-        })
-      ]
+  // ── Build the combined RFT % trend chart (last 4 quarters, one line per product) ──
+  var trendLabels = recentQuarters.map(function(q){ return quarterLabel(q.q, q.y); });
+  var trendDatasets = PRODUCTS.map(function(p) {
+    return {
+      label: p.name,
+      data: recentQuarters.map(function(q){ var s = computeQuarterlyStats(p.tid, q); return s.avgRft; }),
+      borderColor: p.rgb,
+      backgroundColor: 'transparent',
+      borderWidth: 2.5,
+      pointRadius: 4,
+      tension: 0.3,
+      spanGaps: true
+    };
+  });
+  var trendConfig = {
+    type: 'line',
+    data: { labels: trendLabels, datasets: trendDatasets },
+    options: {
+      plugins: { legend: { display: true, labels: { color: DARKTXT, font: { size: 13 } } } },
+      scales: {
+        x: { ticks: { color: DARKTXT, font: { size: 12 } }, grid: { color: '#e5e5e5' } },
+        y: { ticks: { color: DARKTXT, font: { size: 12 }, callback: function(v){ return v + '%'; } }, grid: { color: '#e5e5e5' } }
+      }
+    }
+  };
+
+  // ── Per-product Disposition Lag donut charts ──
+  function lagChartConfig(s) {
+    return {
+      type: 'doughnut',
+      data: {
+        labels: ['Early', 'On-Time', 'Late'],
+        datasets: [{
+          data: [s.lagEarly, s.lagOnTime, s.lagLate],
+          backgroundColor: ['rgba(29,158,117,0.85)', 'rgba(150,150,150,0.85)', 'rgba(224,90,90,0.85)']
+        }]
+      },
+      options: { plugins: { legend: { display: true, position: 'bottom', labels: { color: DARKTXT, font: { size: 12 } } } } }
+    };
+  }
+
+  Promise.all(
+    [renderChartToImage(trendConfig, 640, 320)].concat(
+      PRODUCTS.map(function(p){ return renderChartToImage(lagChartConfig(qStats[p.tid]), 320, 260); })
+    )
+  ).then(function(images) {
+    var trendImg = images[0];
+    var lagImgs = { imm: images[1], prompt: images[2], biofire: images[3] };
+    buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DARKTXT, MIDTXT);
+  }).catch(function(err) {
+    console.error('Chart rendering failed:', err);
+    alert('Something went wrong generating the report charts. Please try again.');
+  });
+}
+
+function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DARKTXT, MIDTXT) {
+  function hdrCell(text, width) {
+    return new D.TableCell({
+      width: { size: width, type: D.WidthType.DXA },
+      shading: { type: D.ShadingType.CLEAR, fill: '1D9E75' },
+      children: [new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ text: text, bold: true, color: 'FFFFFF', size: 20 })] })]
+    });
+  }
+  function bodyCell(text, width, opts) {
+    opts = opts || {};
+    return new D.TableCell({
+      width: { size: width, type: D.WidthType.DXA },
+      shading: opts.shade ? { type: D.ShadingType.CLEAR, fill: 'F5F5F5' } : undefined,
+      children: [new D.Paragraph({
+        alignment: opts.align || D.AlignmentType.CENTER,
+        children: [new D.TextRun({ text: String(text), bold: !!opts.bold, color: opts.color || DARKTXT, size: 20 })]
+      })]
     });
   }
 
+  // ── Executive Summary comparison table ──
+  var metricRows = [
+    { label: 'Total Batches Dispositioned', key: 'totalBatches', fmt: function(v){ return v; } },
+    { label: 'Average RFT %', key: 'avgRft', fmt: function(v){ return v !== null ? v + '%' : '—'; } },
+    { label: 'Total PR Errors', key: 'totalPrErr', fmt: function(v){ return v; } },
+    { label: 'Total QA Errors', key: 'totalQaErr', fmt: function(v){ return v; } },
+    { label: 'Corrections Rate', key: 'corrRate', fmt: function(v){ return v !== null ? v + '%' : '—'; } }
+  ];
+  var execRows = [
+    new D.TableRow({ children: [hdrCell('Metric', 3200), hdrCell('IMM', 1600), hdrCell('Prompt', 1600), hdrCell('BioFire', 1600)] })
+  ];
+  metricRows.forEach(function(m, i) {
+    execRows.push(new D.TableRow({
+      children: [
+        bodyCell(m.label, 3200, { align: D.AlignmentType.LEFT, shade: i % 2 === 1 }),
+        bodyCell(m.fmt(qStats.imm[m.key]), 1600, { bold: true, shade: i % 2 === 1 }),
+        bodyCell(m.fmt(qStats.prompt[m.key]), 1600, { bold: true, shade: i % 2 === 1 }),
+        bodyCell(m.fmt(qStats.biofire[m.key]), 1600, { bold: true, shade: i % 2 === 1 })
+      ]
+    }));
+  });
+
+  // ── Per-product detailed sections ──
   function buildProductSection(p) {
-    var s = computeQuarterlyStats(p.tid, _selectedQuarter);
+    var s = qStats[p.tid];
     var rows = [
-      statRow('Total Batches Dispositioned', s.totalBatches),
-      statRow('Average RFT %', s.avgRft !== null ? s.avgRft + '%' : '—'),
-      statRow('Total PR Errors', s.totalPrErr),
-      statRow('Total QA Errors', s.totalQaErr),
-      statRow('Corrections Rate', s.corrRate !== null ? s.corrRate + '%' : '—'),
-      statRow('Avg PR Review Length (days)', s.avgPrReview !== null ? s.avgPrReview : '—'),
-      statRow('Avg QA Review Length (days)', s.avgQaReview !== null ? s.avgQaReview : '—')
+      new D.TableRow({ children: [hdrCell('Metric', 5200), hdrCell('Value', 2800)] })
     ];
-    if (s.avgQcReview !== null) rows.push(statRow('Avg QC Review Length (days)', s.avgQcReview));
-    rows.push(statRow('Avg Days Returned to Review (days)', s.avgRR !== null ? s.avgRR : '—'));
+    var lines = [
+      ['Total Batches Dispositioned', s.totalBatches],
+      ['Average RFT %', s.avgRft !== null ? s.avgRft + '%' : '—'],
+      ['Total PR Errors', s.totalPrErr],
+      ['Total QA Errors', s.totalQaErr],
+      ['Corrections Rate', s.corrRate !== null ? s.corrRate + '%' : '—'],
+      ['Avg PR Review Length (days)', s.avgPrReview !== null ? s.avgPrReview : '—'],
+      ['Avg QA Review Length (days)', s.avgQaReview !== null ? s.avgQaReview : '—']
+    ];
+    if (s.avgQcReview !== null) lines.push(['Avg QC Review Length (days)', s.avgQcReview]);
+    lines.push(['Avg Days Returned to Review (days)', s.avgRR !== null ? s.avgRR : '—']);
+    lines.forEach(function(line, i) {
+      rows.push(new D.TableRow({ children: [
+        bodyCell(line[0], 5200, { align: D.AlignmentType.LEFT, shade: i % 2 === 1 }),
+        bodyCell(line[1], 2800, { bold: true, shade: i % 2 === 1 })
+      ]}));
+    });
 
     return [
-      new D.Paragraph({ text: p.name, heading: D.HeadingLevel.HEADING_1 }),
-      new D.Table({
-        width: { size: 8000, type: D.WidthType.DXA },
-        columnWidths: [5200, 2800],
-        rows: rows
-      }),
-      new D.Paragraph({ text: '', spacing: { before: 200 } }),
       new D.Paragraph({
-        children: [
-          new D.TextRun({ text: 'Disposition Timing: ', bold: true }),
-          new D.TextRun(s.lagEarly + ' early, ' + s.lagOnTime + ' on-time, ' + s.lagLate + ' late')
-        ]
+        spacing: { before: 400 },
+        border: { bottom: { color: p.color, space: 4, style: D.BorderStyle.SINGLE, size: 12 } },
+        children: [new D.TextRun({ text: p.name, bold: true, size: 32, color: p.color })]
       }),
-      new D.Paragraph({ text: '', spacing: { after: 400 } })
+      new D.Paragraph({ text: '', spacing: { after: 150 } }),
+      new D.Table({ width: { size: 8000, type: D.WidthType.DXA }, columnWidths: [5200, 2800], rows: rows }),
+      new D.Paragraph({ text: '', spacing: { before: 250 } }),
+      new D.Paragraph({
+        alignment: D.AlignmentType.CENTER,
+        children: [ new D.ImageRun({ data: lagImgs[p.tid], transformation: { width: 280, height: 228 }, type: 'png' }) ]
+      }),
+      new D.Paragraph({
+        alignment: D.AlignmentType.CENTER,
+        spacing: { before: 100, after: 400 },
+        children: [new D.TextRun({ text: 'Disposition Timing — ' + s.lagEarly + ' early, ' + s.lagOnTime + ' on-time, ' + s.lagLate + ' late', italics: true, color: MIDTXT, size: 18 })]
+      })
     ];
   }
 
   var children = [
-    new D.Paragraph({ text: 'Quarterly Summary Report — ' + qLabel, heading: D.HeadingLevel.TITLE }),
-    new D.Paragraph({ text: 'Generated ' + new Date().toLocaleDateString(), spacing: { after: 300 } })
+    new D.Paragraph({
+      alignment: D.AlignmentType.CENTER,
+      children: [new D.TextRun({ text: 'Quarterly Summary Report', bold: true, size: 56, color: '1D9E75' })]
+    }),
+    new D.Paragraph({
+      alignment: D.AlignmentType.CENTER,
+      spacing: { before: 120 },
+      children: [new D.TextRun({ text: qLabel, size: 32, color: DARKTXT })]
+    }),
+    new D.Paragraph({
+      alignment: D.AlignmentType.CENTER,
+      spacing: { before: 60, after: 300 },
+      border: { bottom: { color: '1D9E75', space: 8, style: D.BorderStyle.SINGLE, size: 18 } },
+      children: [new D.TextRun({ text: 'Generated ' + new Date().toLocaleDateString(), size: 18, color: MIDTXT, italics: true })]
+    }),
+    new D.Paragraph({ text: '', spacing: { after: 100 } }),
+    new D.Paragraph({ children: [new D.TextRun({ text: 'Executive Summary', bold: true, size: 28, color: DARKTXT })] }),
+    new D.Paragraph({ text: '', spacing: { after: 150 } }),
+    new D.Table({ width: { size: 8000, type: D.WidthType.DXA }, columnWidths: [3200, 1600, 1600, 1600], rows: execRows }),
+    new D.Paragraph({ text: '', spacing: { before: 350, after: 150 } }),
+    new D.Paragraph({ children: [new D.TextRun({ text: 'RFT % Trend — Last 4 Quarters', bold: true, size: 24, color: DARKTXT })] }),
+    new D.Paragraph({ text: '', spacing: { after: 150 } }),
+    new D.Paragraph({
+      alignment: D.AlignmentType.CENTER,
+      children: [ new D.ImageRun({ data: trendImg, transformation: { width: 560, height: 280 }, type: 'png' }) ]
+    })
   ];
   PRODUCTS.forEach(function(p) { children = children.concat(buildProductSection(p)); });
 
   var doc = new D.Document({
     sections: [{
-      properties: { page: { size: { width: 12240, height: 15840 } } }, // US Letter
-      children: children
+      properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1000, bottom: 1000, left: 1100, right: 1100 } } },
+      children: children,
+      footers: {
+        default: new D.Footer({
+          children: [ new D.Paragraph({
+            alignment: D.AlignmentType.CENTER,
+            children: [ new D.TextRun({ children: [D.PageNumber.CURRENT], color: '999999', size: 16 }) ]
+          }) ]
+        })
+      }
     }]
   });
 
