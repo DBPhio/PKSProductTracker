@@ -1722,6 +1722,8 @@ function renderCharts(tid) {
     return totalTx > 0 ? Math.max(0, (totalTx - prErr - qaErr) / totalTx * 100) : null;
   }
   var rftByMonth = {}; // { 'MM/YYYY': [pct, pct, ...] }
+  var prErrByMonth = {}; // { 'MM/YYYY': totalPrErrors }
+  var qaErrByMonth = {}; // { 'MM/YYYY': totalQaErrors }
   disp.forEach(function(r) {
     if (!r._dispositionedAt) return;
     var d = parseLocalDate(r._dispositionedAt);
@@ -1731,6 +1733,10 @@ function renderCharts(tid) {
     if (pct === null) return;
     if (!rftByMonth[key]) rftByMonth[key] = [];
     rftByMonth[key].push(pct);
+    var prErr = (r.prErrors === '' || r.prErrors == null) ? 0 : parseInt(r.prErrors, 10) || 0;
+    var qaErr = (r.qaErrors === '' || r.qaErrors == null) ? 0 : parseInt(r.qaErrors, 10) || 0;
+    prErrByMonth[key] = (prErrByMonth[key] || 0) + prErr;
+    qaErrByMonth[key] = (qaErrByMonth[key] || 0) + qaErr;
   });
   var rftMonthKeys = Object.keys(rftByMonth).sort(function(a,b) {
     var pa = a.split('/'), pb = b.split('/');
@@ -1741,6 +1747,8 @@ function renderCharts(tid) {
     var arr = rftByMonth[k];
     return Math.round((arr.reduce(function(a,b){return a+b;},0)/arr.length)*100)/100;
   });
+  var rftTrendPrErr = rftMonthKeys.map(function(k){ return prErrByMonth[k] || 0; });
+  var rftTrendQaErr = rftMonthKeys.map(function(k){ return qaErrByMonth[k] || 0; });
 
   // Current calendar month stats
   var now = new Date();
@@ -1828,7 +1836,21 @@ function renderCharts(tid) {
         fill:true,
         tension:0.3
       }],{
-        plugins:{legend:{display:false}},
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            backgroundColor:'#1e1e1e', borderColor:'#444', borderWidth:1,
+            callbacks:{
+              afterLabel: function(ctx) {
+                var i = ctx.dataIndex;
+                return [
+                  'PR Errors: ' + (rftTrendPrErr[i] || 0),
+                  'QA Errors: ' + (rftTrendQaErr[i] || 0)
+                ];
+              }
+            }
+          }
+        },
         scales:{y:{ticks:{callback:function(v){return v+'%';}}}}
       });
     } else emptyChart(tid+'-rfttrd');
