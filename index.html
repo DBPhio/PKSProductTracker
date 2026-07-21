@@ -1213,11 +1213,14 @@ function generateQuarterlyReport() {
 }
 
 function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DARKTXT, MIDTXT) {
+  var FONT = 'Aptos Narrow'; // matches the website's font (--aptos), falls back gracefully in Word
+  var SIZE = 24; // 12pt, in half-points
+
   function hdrCell(text, width) {
     return new D.TableCell({
       width: { size: width, type: D.WidthType.DXA },
       shading: { type: D.ShadingType.CLEAR, fill: '1D9E75' },
-      children: [new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ text: text, bold: true, color: 'FFFFFF', size: 20 })] })]
+      children: [new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ text: text, bold: true, color: 'FFFFFF', size: SIZE, font: FONT })] })]
     });
   }
   function bodyCell(text, width, opts) {
@@ -1226,8 +1229,8 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
       width: { size: width, type: D.WidthType.DXA },
       shading: opts.shade ? { type: D.ShadingType.CLEAR, fill: 'F5F5F5' } : undefined,
       children: [new D.Paragraph({
-        alignment: opts.align || D.AlignmentType.CENTER,
-        children: [new D.TextRun({ text: String(text), bold: !!opts.bold, color: opts.color || DARKTXT, size: 20 })]
+        alignment: D.AlignmentType.CENTER,
+        children: [new D.TextRun({ text: String(text), bold: !!opts.bold, color: opts.color || DARKTXT, size: SIZE, font: FONT })]
       })]
     });
   }
@@ -1246,7 +1249,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
   metricRows.forEach(function(m, i) {
     execRows.push(new D.TableRow({
       children: [
-        bodyCell(m.label, 3200, { align: D.AlignmentType.LEFT, shade: i % 2 === 1 }),
+        bodyCell(m.label, 3200, { shade: i % 2 === 1 }),
         bodyCell(m.fmt(qStats.imm[m.key]), 1600, { bold: true, shade: i % 2 === 1 }),
         bodyCell(m.fmt(qStats.prompt[m.key]), 1600, { bold: true, shade: i % 2 === 1 }),
         bodyCell(m.fmt(qStats.biofire[m.key]), 1600, { bold: true, shade: i % 2 === 1 })
@@ -1254,7 +1257,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
     }));
   });
 
-  // ── Per-product detailed sections ──
+  // ── Per-product detailed sections — each starts on its own page ──
   function buildProductSection(p) {
     var s = qStats[p.tid];
     var rows = [
@@ -1273,19 +1276,21 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
     lines.push(['Avg Days Returned to Review (days)', s.avgRR !== null ? s.avgRR : '—']);
     lines.forEach(function(line, i) {
       rows.push(new D.TableRow({ children: [
-        bodyCell(line[0], 5200, { align: D.AlignmentType.LEFT, shade: i % 2 === 1 }),
+        bodyCell(line[0], 5200, { shade: i % 2 === 1 }),
         bodyCell(line[1], 2800, { bold: true, shade: i % 2 === 1 })
       ]}));
     });
 
     return [
+      new D.Paragraph({ children: [new D.PageBreak()] }),
       new D.Paragraph({
+        alignment: D.AlignmentType.CENTER,
         spacing: { before: 400 },
         border: { bottom: { color: p.color, space: 4, style: D.BorderStyle.SINGLE, size: 12 } },
-        children: [new D.TextRun({ text: p.name, bold: true, size: 32, color: p.color })]
+        children: [new D.TextRun({ text: p.name, bold: true, size: SIZE, font: FONT, color: p.color })]
       }),
       new D.Paragraph({ text: '', spacing: { after: 150 } }),
-      new D.Table({ width: { size: 8000, type: D.WidthType.DXA }, columnWidths: [5200, 2800], rows: rows }),
+      new D.Table({ width: { size: 8000, type: D.WidthType.DXA }, columnWidths: [5200, 2800], rows: rows, alignment: D.AlignmentType.CENTER }),
       new D.Paragraph({ text: '', spacing: { before: 250 } }),
       new D.Paragraph({
         alignment: D.AlignmentType.CENTER,
@@ -1294,7 +1299,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
       new D.Paragraph({
         alignment: D.AlignmentType.CENTER,
         spacing: { before: 100, after: 400 },
-        children: [new D.TextRun({ text: 'Disposition Timing — ' + s.lagEarly + ' early, ' + s.lagOnTime + ' on-time, ' + s.lagLate + ' late', italics: true, color: MIDTXT, size: 18 })]
+        children: [new D.TextRun({ text: 'Disposition Timing — ' + s.lagEarly + ' early, ' + s.lagOnTime + ' on-time, ' + s.lagLate + ' late', italics: true, color: MIDTXT, size: SIZE, font: FONT })]
       })
     ];
   }
@@ -1302,25 +1307,25 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
   var children = [
     new D.Paragraph({
       alignment: D.AlignmentType.CENTER,
-      children: [new D.TextRun({ text: 'Quarterly Summary Report', bold: true, size: 56, color: '1D9E75' })]
+      children: [new D.TextRun({ text: 'Quarterly Summary Report', bold: true, size: SIZE, font: FONT, color: '1D9E75' })]
     }),
     new D.Paragraph({
       alignment: D.AlignmentType.CENTER,
       spacing: { before: 120 },
-      children: [new D.TextRun({ text: qLabel, size: 32, color: DARKTXT })]
+      children: [new D.TextRun({ text: qLabel, size: SIZE, font: FONT, color: DARKTXT })]
     }),
     new D.Paragraph({
       alignment: D.AlignmentType.CENTER,
       spacing: { before: 60, after: 300 },
       border: { bottom: { color: '1D9E75', space: 8, style: D.BorderStyle.SINGLE, size: 18 } },
-      children: [new D.TextRun({ text: 'Generated ' + new Date().toLocaleDateString(), size: 18, color: MIDTXT, italics: true })]
+      children: [new D.TextRun({ text: 'Generated ' + new Date().toLocaleDateString(), size: SIZE, font: FONT, color: MIDTXT, italics: true })]
     }),
     new D.Paragraph({ text: '', spacing: { after: 100 } }),
-    new D.Paragraph({ children: [new D.TextRun({ text: 'Executive Summary', bold: true, size: 28, color: DARKTXT })] }),
+    new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ text: 'Executive Summary', bold: true, size: SIZE, font: FONT, color: DARKTXT })] }),
     new D.Paragraph({ text: '', spacing: { after: 150 } }),
-    new D.Table({ width: { size: 8000, type: D.WidthType.DXA }, columnWidths: [3200, 1600, 1600, 1600], rows: execRows }),
+    new D.Table({ width: { size: 8000, type: D.WidthType.DXA }, columnWidths: [3200, 1600, 1600, 1600], rows: execRows, alignment: D.AlignmentType.CENTER }),
     new D.Paragraph({ text: '', spacing: { before: 350, after: 150 } }),
-    new D.Paragraph({ children: [new D.TextRun({ text: 'RFT % Trend — Last 4 Quarters', bold: true, size: 24, color: DARKTXT })] }),
+    new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ text: 'RFT % Trend — Last 4 Quarters', bold: true, size: SIZE, font: FONT, color: DARKTXT })] }),
     new D.Paragraph({ text: '', spacing: { after: 150 } }),
     new D.Paragraph({
       alignment: D.AlignmentType.CENTER,
@@ -1330,6 +1335,11 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
   PRODUCTS.forEach(function(p) { children = children.concat(buildProductSection(p)); });
 
   var doc = new D.Document({
+    styles: {
+      default: {
+        document: { run: { font: FONT, size: SIZE } }
+      }
+    },
     sections: [{
       properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1000, bottom: 1000, left: 1100, right: 1100 } } },
       children: children,
@@ -1337,7 +1347,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
         default: new D.Footer({
           children: [ new D.Paragraph({
             alignment: D.AlignmentType.CENTER,
-            children: [ new D.TextRun({ children: [D.PageNumber.CURRENT], color: '999999', size: 16 }) ]
+            children: [ new D.TextRun({ children: [D.PageNumber.CURRENT], color: '999999', size: SIZE, font: FONT }) ]
           }) ]
         })
       }
