@@ -1996,13 +1996,45 @@ document.addEventListener('keydown', function(e) {
 
 // ================================================================
 //  FEATURE: COMPACT / COMFORTABLE TOGGLE (#13)
+var _isCompact = false;
 function toggleCompact() {
   _isCompact = !_isCompact;
   document.body.classList.toggle('compact', _isCompact);
   var btn = document.getElementById('compact-btn');
   btn.classList.toggle('active', _isCompact);
   btn.textContent = _isCompact ? '⇕ Comfortable' : '⇕ Compact';
-  IDS.forEach(function(tid){ syncCalcRowHeights(tid); });
+  // Force every row to recalculate its height under the new padding —
+  // syncCalcRowHeights only fixes mismatched rows, so a full clear+remeasure
+  // is needed here since ALL rows need to resize, not just mismatched ones.
+  IDS.forEach(function(tid){ recalcAllRowHeights(tid); });
+}
+
+// Clears every row's locked height and remeasures it under current CSS —
+// used when something global changes cell sizing (e.g. compact mode toggle).
+function recalcAllRowHeights(tid) {
+  requestAnimationFrame(function() {
+    var mainRows = document.querySelectorAll('#' + tid + '-tbody tr');
+    var calcRows = document.querySelectorAll('#' + tid + '-calc-tbody tr');
+    var len = Math.min(mainRows.length, calcRows.length);
+    if (!len) return;
+    // WRITE: release all height locks
+    for (var i = 0; i < len; i++) {
+      mainRows[i].style.height = '';
+      calcRows[i].style.height = '';
+    }
+    requestAnimationFrame(function() {
+      // READ natural heights, then WRITE new locks
+      for (var j = 0; j < len; j++) {
+        var mh = mainRows[j].getBoundingClientRect().height;
+        var ch = calcRows[j].getBoundingClientRect().height;
+        var h  = Math.ceil(Math.max(mh, ch));
+        if (h > 0) {
+          mainRows[j].style.height = h + 'px';
+          calcRows[j].style.height = h + 'px';
+        }
+      }
+    });
+  });
 }
 
 // ================================================================
