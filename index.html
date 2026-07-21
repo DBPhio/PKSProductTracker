@@ -2332,7 +2332,17 @@ var _lastCheckedRow = {}; // tid → rowId
 
 function toggleRow(tid, id, cb) {
   var r = T[tid].rows.find(function(r){ return r.id === id; });
-  if (r) { r.done = cb.checked; scheduleRender(tid); scheduleSave(); }
+  if (r) {
+    r.done = cb.checked;
+    // 'done' only drives a CSS class (strike-through look) — no calculated
+    // values depend on it, so toggle the class directly instead of a full
+    // panel re-render.
+    var tr  = document.querySelector('#' + tid + '-tbody tr[data-id="' + id + '"]');
+    var ctr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + id + '"]');
+    if (tr)  tr.classList.toggle('done', r.done);
+    if (ctr) ctr.classList.toggle('done', r.done);
+    scheduleSave();
+  }
   _lastCheckedRow[tid] = id;
 }
 
@@ -3426,7 +3436,9 @@ function toggleLotCheck(e, tid, id, key, cb) {
   } else {
     r.lotChecks[key] = false;
   }
-  scheduleRender(tid);
+  // Lot checks only affect the dark-section Lot Numbers cell — no green
+  // section values depend on them, so a full panel re-render isn't needed.
+  updateSingleRowMain(tid, id);
   scheduleSave();
 }
 
@@ -3441,14 +3453,12 @@ function toggleCorrections(tid, id, cb) {
   } else {
     delete r._corrDaysAtComplete;
   }
-  scheduleRender(tid);
+  // Corrections completion only affects the green-section Corrections cell —
+  // no dark-section values depend on it, so update just that cell.
+  updateSingleRowCalc(tid, id);
   scheduleSave();
 }
 
-function toggleRow(tid, id, cb) {
-  var r = T[tid].rows.find(function(r){ return r.id === id; });
-  if (r) { r.done = cb.checked; scheduleRender(tid); scheduleSave(); }
-}
 function toggleDelRow(tid, id, cb) {
   var s = T[tid];
   if (cb.checked) {
@@ -3698,10 +3708,63 @@ function upd(tid, id, field, value) {
   }
   stampAudit(r, field, value);
   r[field] = value;
-  scheduleRender(tid);
+
+  // Any date edit can change both this row's dark-section inline counters
+  // (e.g. "PR length" under Date PR Ended) and its green-section calculated
+  // cells (Review Length, RFT %, Expected Disposition Date, etc.) — so both
+  // sides of just this one row need refreshing, not the whole panel.
+  updateSingleRowMain(tid, id);
+  updateSingleRowCalc(tid, id);
   collapseRowHeight(tid, id);
+
+  // BioFire campaign detection: Expected Disposition Date is shared across
+  // all rows whose lot number shares the same root (e.g. BF26013A/B/C use
+  // the LATEST Date PR Ended among them). If this edit changed that date,
+  // every campaign-mate row's calc cell needs refreshing too.
+  if (tid === 'biofire' && field === 'dateManufactured') {
+    var lotRaw = (r.lotNumbers || '').replace(/<[^>]+>/g,'').trim();
+    var campMatch = lotRaw.match(/^(.+)[A-Za-z]$/);
+    if (campMatch) {
+      var campRoot = campMatch[1];
+      var allBF = (s.rows || []).concat(s.deleted || []);
+      allBF.forEach(function(other) {
+        if (other.id === id) return;
+        var oLot = (other.lotNumbers || '').replace(/<[^>]+>/g,'').trim();
+        var m = oLot.match(/^(.+)[A-Za-z]$/);
+        if (m && m[1] === campRoot) updateSingleRowCalc(tid, other.id);
+      });
+    }
+  }
+
   scheduleSave();
 }
+// Updates just one row's dark-section (main) cells in place — same
+// principle as updateSingleRowCalc but for the left/dark table, used when
+// only the dark section needs refreshing (e.g. IMM lot checkboxes).
+function updateSingleRowMain(tid, rowId) {
+  var s = T[tid];
+  var idx, row, isDel = false;
+  idx = s.rows.findIndex(function(r){ return r.id === rowId; });
+  if (idx !== -1) { row = s.rows[idx]; }
+  else {
+    idx = s.deleted.findIndex(function(r){ return r.id === rowId; });
+    if (idx !== -1) { row = s.deleted[idx]; isDel = true; idx = s.rows.length + idx; }
+    else {
+      idx = (s.archived || []).findIndex(function(r){ return r.id === rowId; });
+      if (idx !== -1) { row = s.archived[idx]; isDel = true; idx = s.rows.length + s.deleted.length + idx; }
+    }
+  }
+  if (!row) return;
+
+  var tr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]') ||
+           document.querySelector('#' + tid + '-tbody tr[data-delid="' + rowId + '"]') ||
+           document.querySelector('#' + tid + '-tbody tr[data-archid="' + rowId + '"]');
+  if (!tr) return;
+
+  tr.innerHTML = rowHTML(tid, row, idx, isDel);
+  syncRowHeight(tid, rowId);
+}
+
 // Number fields (PR Errors, QA Errors): clamp to non-negative integer
 // Updates just one row's calculated (green section) cells in place —
 // avoids a full panel re-render, which was causing visible jitter/movement
