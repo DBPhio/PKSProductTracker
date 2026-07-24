@@ -2866,6 +2866,12 @@ function toggleRow(tid, id, cb) {
     var ctr = document.querySelector('#' + tid + '-calc-tbody tr[data-id="' + id + '"]');
     if (tr)  tr.classList.toggle('done', r.done);
     if (ctr) ctr.classList.toggle('done', r.done);
+    // Show/hide the Delete button based on whether ANY row is checked —
+    // this used to only happen inside a full render(), which toggleRow no
+    // longer triggers, so it needs to be handled explicitly here too.
+    var anyChecked = T[tid].rows.some(function(r){ return r.done; });
+    var dbtn = document.getElementById(tid + '-dbtn');
+    if (dbtn) dbtn.style.display = anyChecked ? 'inline-block' : 'none';
     scheduleSave();
   }
   _lastCheckedRow[tid] = id;
