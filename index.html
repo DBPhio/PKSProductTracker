@@ -2197,6 +2197,7 @@ function renderCharts(tid) {
   var now = new Date();
   var curKey = (now.getMonth()+1) + '/' + now.getFullYear();
   var curMonthRft = [];
+  var prErrorsThisMonth = 0, qaErrorsThisMonth = 0;
   dispAll.forEach(function(r) {
     if (!r._dispositionedAt) return;
     var d = parseLocalDate(r._dispositionedAt);
@@ -2205,6 +2206,8 @@ function renderCharts(tid) {
     if (key !== curKey) return;
     var pct = calcRft(r);
     if (pct !== null) curMonthRft.push(pct);
+    prErrorsThisMonth += (r.prErrors === '' || r.prErrors == null) ? 0 : parseInt(r.prErrors, 10) || 0;
+    qaErrorsThisMonth += (r.qaErrors === '' || r.qaErrors == null) ? 0 : parseInt(r.qaErrors, 10) || 0;
   });
   var totalBatchesThisMonth = curMonthRft.length;
   var avgRftThisMonth = curMonthRft.length
@@ -2301,6 +2304,8 @@ function renderCharts(tid) {
   [
     { label:'Batches This Month', val: totalBatchesThisMonth, unit:'' },
     { label:'Avg RFT % This Month', val: avgRftThisMonth !== null ? avgRftThisMonth+'%' : null, unit:'' },
+    { label:'PR Errors This Month', val: prErrorsThisMonth, unit:'' },
+    { label:'QA Errors This Month', val: qaErrorsThisMonth, unit:'' },
     { label:'Currently Dispositioned', val:(s.deleted||[]).length, unit:'' },
     { label:'Active', val:(s.rows||[]).length, unit:'' }
   ].filter(Boolean).forEach(function(st) {
