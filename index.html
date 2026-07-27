@@ -2490,12 +2490,13 @@ function emptyChart(id) {
 //            ROW HOVER ACTIONS, KEYBOARD NAV, AUTO-SCROLL (#2,4,5,6,9,10,11,12,13)
 // ================================================================
 
-// Non-critical visual work deferred until after render settles
+// Non-critical visual work deferred until after render settles.
+// (Row hover actions are now baked directly into rowHTML() output instead
+// of being injected here, so this only needs to handle date warnings.)
 var _idleTimers = {};
 function scheduleIdleWork(tid) {
   clearTimeout(_idleTimers[tid]);
   _idleTimers[tid] = setTimeout(function() {
-    injectRowHoverActions(tid);
     applyDateWarnings(tid);
   }, 120);
 }
@@ -2580,26 +2581,6 @@ function applyDateWarnings(tid) {
       if (existing) existing.remove();
       inp.style.borderBottom = '';
     }
-  });
-}
-
-// ── Row hover inline actions ───────────────────────────────────
-function injectRowHoverActions(tid) {
-  var tbody = document.getElementById(tid + '-tbody');
-  if (!tbody) return;
-  tbody.querySelectorAll('tr[data-id]').forEach(function(tr) {
-    var rowId = parseInt(tr.dataset.id);
-    // Put actions in the last data cell to avoid the drag handle
-    var tds = tr.querySelectorAll('td');
-    var lastTd = tds[tds.length - 1];
-    if (!lastTd || lastTd.querySelector('.row-actions')) return;
-    var div = document.createElement('div');
-    div.className = 'row-actions';
-    div.innerHTML =
-      '<button class="row-action-btn" onclick="dispositionRow(event,\'' + tid + '\',' + rowId + ')" title="Disposition">📥</button>' +
-      '<button class="row-action-btn" onclick="duplicateRow(event,\'' + tid + '\',' + rowId + ')" title="Duplicate">⧉</button>';
-    lastTd.classList.add('row-actions-cell');
-    lastTd.appendChild(div);
   });
 }
 
@@ -3545,6 +3526,25 @@ function rowHTML(tid, row, i, isDel) {
   } else {
     ccChecked = row.done ? ' checked' : '';
     ccHandler = 'handleRowCheck(event,\'' + tid + '\',' + row.id + ',this)';
+  }
+
+  // Bake the Disposition/Duplicate hover buttons directly into the last
+  // column's HTML instead of injecting them via a separate post-render
+  // DOM pass — that approach depended on a debounced idle timer that could
+  // get pushed back indefinitely during a busy editing session (renders
+  // wipe the tbody's innerHTML each time, destroying any DOM appended
+  // between renders), sometimes leaving new/duplicated rows without their
+  // hover buttons until a refresh. Baking them into the string means they
+  // exist immediately on every single render, with zero timing dependency.
+  if (!isDel && !isArch) {
+    var rowActionsHtml = '<div class="row-actions">' +
+      '<button class="row-action-btn" onclick="dispositionRow(event,\'' + tid + '\',' + row.id + ')" title="Disposition">📥</button>' +
+      '<button class="row-action-btn" onclick="duplicateRow(event,\'' + tid + '\',' + row.id + ')" title="Duplicate">⧉</button>' +
+      '</div>';
+    var lastTdClose = cells.lastIndexOf('</td>');
+    if (lastTdClose !== -1) {
+      cells = cells.slice(0, lastTdClose) + rowActionsHtml + cells.slice(lastTdClose);
+    }
   }
 
   return (
