@@ -621,10 +621,10 @@ const FIREBASE_CONFIG = {
 // ================================================================
 
 const IDS = ['imm','prompt','biofire'];
-const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,75,75,108,108,105,75,75,75,80,108,75]; // 21 cols (IMM)
-const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,75,75,108,105,105,98,75,75,75,75,80,82,75]; // 25 cols (Prompt)
-const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,75,75,108,105,105,75,75,75,75,80,82,75]; // 24 cols (BioFire)
-const CALC_COL_COUNT = { imm: 8, prompt: 10, biofire: 9 }; // how many cols live in the fixed calc panel
+const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,75,75,108,160,75,75,75,80,108,75]; // 20 cols (IMM)
+const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,75,75,108,160,98,75,75,75,75,80,82,75]; // 24 cols (Prompt)
+const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,75,75,108,160,75,75,75,75,80,82,75]; // 23 cols (BioFire)
+const CALC_COL_COUNT = { imm: 7, prompt: 9, biofire: 8 }; // how many cols live in the fixed calc panel
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -819,11 +819,24 @@ function reconcileOrder(saved, def) {
   var result = saved.slice();
   missing.forEach(function(key) {
     var defIdx = def.indexOf(key);
-    var insertAt = result.length; // fallback: append at end
+    var insertAt = -1;
+    // First choice: anchor right after the nearest PRECEDING default key
+    // that's already present in the saved order.
     for (var i = defIdx - 1; i >= 0; i--) {
       var pos = result.indexOf(def[i]);
       if (pos !== -1) { insertAt = pos + 1; break; }
     }
+    // If nothing precedes it (e.g. it's first in the default order), anchor
+    // right BEFORE the nearest FOLLOWING default key instead — otherwise
+    // this falls through to "append at end", which is wrong for a column
+    // that's supposed to lead the list.
+    if (insertAt === -1) {
+      for (var j = defIdx + 1; j < def.length; j++) {
+        var pos2 = result.indexOf(def[j]);
+        if (pos2 !== -1) { insertAt = pos2; break; }
+      }
+    }
+    if (insertAt === -1) insertAt = result.length; // last resort: nothing anchors it either direction
     result.splice(insertAt, 0, key);
   });
   return result;
@@ -854,6 +867,13 @@ function reconcileColumns(tid, remote) {
   var oldDataOrder = (remote.dataColOrder && remote.dataColOrder.length) ? remote.dataColOrder : defData;
   var oldCalcOrder = (remote.calcColOrder && remote.calcColOrder.length) ? remote.calcColOrder : defCalc;
   var oldWidths    = (remote.colWidths && remote.colWidths.length) ? remote.colWidths : defW;
+
+  // Migration: ER Number and LIR/NCR Number were merged into a single
+  // "Quality Incidents" column. Strip the old keys from any saved order —
+  // reconcileOrder will then see 'qualityIncidents' as missing (since it's
+  // not one of these legacy keys) and correctly insert it at the position
+  // it holds in the current default order.
+  oldCalcOrder = oldCalcOrder.filter(function(k){ return k !== 'erLirNumber' && k !== 'lirNcrNumber'; });
 
   // Safety check: positional width mapping only works if the saved width
   // array's length actually matches the order arrays we're pairing it with.
@@ -920,6 +940,19 @@ function runArchiveSweep(tid) {
   s.archived = s.archived.concat(toArchive);
 }
 
+// Migration: ER Number and LIR/NCR Number were merged into a single
+// "Quality Incidents" field. For any row that still has old values in
+// either legacy field but nothing yet in the new field, combine them.
+// Old field values are left in place (not deleted) — harmless leftover
+// data, kept just in case anything ever needs to be double-checked.
+function migrateQualityIncidents(row) {
+  if (row.qualityIncidents) return; // already migrated or already in use
+  var er  = row.erLirNumber  || '';
+  var lir = row.lirNcrNumber || '';
+  var parts = [er, lir].filter(function(v){ return v && v.replace(/<[^>]+>/g,'').trim(); });
+  if (parts.length) row.qualityIncidents = parts.join(' / ');
+}
+
 function applyRemote(payload) {
   IDS.forEach(function(tid) {
     if (!payload.tables || !payload.tables[tid]) return;
@@ -929,9 +962,9 @@ function applyRemote(payload) {
     var changedIds = (remote.rows || [])
       .filter(function(r){ return oldById[r.id] !== JSON.stringify(r); })
       .map(function(r){ return r.id; });
-    T[tid].rows    = (remote.rows || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
-    T[tid].deleted = (remote.deleted || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
-    T[tid].archived = (remote.archived || []).map(function(r){ if (!r.strikes) r.strikes = {}; return r; });
+    T[tid].rows    = (remote.rows || []).map(function(r){ if (!r.strikes) r.strikes = {}; migrateQualityIncidents(r); return r; });
+    T[tid].deleted = (remote.deleted || []).map(function(r){ if (!r.strikes) r.strikes = {}; migrateQualityIncidents(r); return r; });
+    T[tid].archived = (remote.archived || []).map(function(r){ if (!r.strikes) r.strikes = {}; migrateQualityIncidents(r); return r; });
     T[tid].nextId  = remote.nextId  || T[tid].nextId;
     if (!T[tid].permSelected)   T[tid].permSelected = new Set();
     if (!T[tid].archiveSelected) T[tid].archiveSelected = new Set();
@@ -1006,7 +1039,7 @@ function setSyncStatus(state) {
 // ================================================================
 
 function mkRow(id) {
-  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', lotChecks:{}, erLirNumber:'', lirNcrNumber:'', prInitialReview:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, prErrors:'', qaErrors:'', done:false, strikes:{}, _cellMeta:{} };
+  return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', lotChecks:{}, qualityIncidents:'', prInitialReview:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, prErrors:'', qaErrors:'', done:false, strikes:{}, _cellMeta:{} };
 }
 
 // ================================================================
@@ -1026,11 +1059,11 @@ function buildCsvForPanel(tid) {
   var allRows = (s.rows || []).concat(s.deleted || [], s.archived || []);
 
   var dataCols = s.dataColOrder || DEFAULT_DATA_COLS[tid];
-  var calcCols = ['erLirNumber','lirNcrNumber','dIR','dQA'].concat(tid !== 'imm' ? ['dQC'] : []).concat(['dRR']);
+  var calcCols = ['qualityIncidents','dIR','dQA'].concat(tid !== 'imm' ? ['dQC'] : []).concat(['dRR']);
 
   var headers = ['Status'].concat(
     dataCols.map(function(k){ return getColTitle(tid, k); }),
-    ['ER Number','LIR/NCR Number','PR Review Length (days)','QA Review Length (days)'],
+    ['Quality Incidents','PR Review Length (days)','QA Review Length (days)'],
     tid !== 'imm' ? ['QC Review Length (days)'] : [],
     ['Days Returned to Review (days)','RFT %','Dispositioned Date']
   );
@@ -1058,8 +1091,7 @@ function buildCsvForPanel(tid) {
     var rftPct = totalTx > 0 ? Math.round(Math.max(0, (totalTx - prErr - qaErr) / totalTx * 100) * 100) / 100 : '';
 
     var calcVals = [
-      (r.erLirNumber || '').replace(/<[^>]+>/g,''),
-      (r.lirNcrNumber || '').replace(/<[^>]+>/g,''),
+      (r.qualityIncidents || '').replace(/<[^>]+>/g,''),
       dIR !== null ? dIR : '',
       dQA !== null ? dQA : ''
     ];
@@ -1802,7 +1834,7 @@ var SEARCH_FIELDS = [
   'lotNumbers','dateIssued','dateManufactured','prInitialReview',
   'dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC',
   'initialReviewDate','reviewCompleteDate','correctionsDate',
-  'erLirNumber','lirNcrNumber','sterilityDate'
+  'qualityIncidents','sterilityDate'
 ];
 
 function getRowSearchText(tid, rowId) {
@@ -2137,26 +2169,22 @@ function renderCharts(tid) {
     var da=parseLocalDate(a),db=parseLocalDate(b); return da&&db?da-db:0;
   }).forEach(function(d){ cum+=byDate[d]; cumLabels.push(d); cumData.push(cum); });
 
-  // ── ER vs LIR/NCR — monthly count so lines show real trend ──
-  var erMonthly = {}, lirMonthly = {};
+  // ── Quality Incidents — monthly count so the line shows real trend ──
+  var qiMonthly = {};
   disp.forEach(function(r) {
     if (!r._dispositionedAt) return;
     var d = parseLocalDate(r._dispositionedAt);
     if (!d) return;
     var key = (d.getMonth()+1) + '/' + d.getFullYear();
-    var hasER  = r.erLirNumber  && r.erLirNumber.replace(/<[^>]+>/g,'').trim();
-    var hasLIR = r.lirNcrNumber && r.lirNcrNumber.replace(/<[^>]+>/g,'').trim();
-    if (hasER)  erMonthly[key]  = (erMonthly[key]  || 0) + 1;
-    if (hasLIR) lirMonthly[key] = (lirMonthly[key] || 0) + 1;
+    var hasQI = r.qualityIncidents && r.qualityIncidents.replace(/<[^>]+>/g,'').trim();
+    if (hasQI) qiMonthly[key] = (qiMonthly[key] || 0) + 1;
   });
-  // Merge and sort all months
-  var allMonths = Object.keys(Object.assign({}, erMonthly, lirMonthly)).sort(function(a,b) {
+  var allMonths = Object.keys(qiMonthly).sort(function(a,b) {
     var pa = a.split('/'), pb = b.split('/');
     return (parseInt(pa[1])*12+parseInt(pa[0])) - (parseInt(pb[1])*12+parseInt(pb[0]));
   });
-  var erCumLabels = allMonths;
-  var erCumData   = allMonths.map(function(m){ return erMonthly[m]  || 0; });
-  var lirCumData  = allMonths.map(function(m){ return lirMonthly[m] || 0; });
+  var qiCumLabels = allMonths;
+  var qiCumData   = allMonths.map(function(m){ return qiMonthly[m] || 0; });
 
   // ── RFT % — monthly average + current month stats ────────────
   var TRANSACTIONS = { imm: 4498, prompt: 4373, biofire: 4000 };
@@ -2331,9 +2359,9 @@ function renderCharts(tid) {
   html += card(tid+'-qatrd', 'QA Review Velocity', WIN+'-row rolling avg — is QA review trending up or down?', '240px');
   html += '</div>';
 
-  // ── ROW 3: ER vs LIR/NCR trend + QC velocity / Scatter ───────
+  // ── ROW 3: Quality Incidents trend + QC velocity / Scatter ───
   html += '<div class="chart-row">';
-  html += card(tid+'-erlir', 'ER vs LIR/NCR Trend', 'Count per month — rising = more being logged, falling = fewer', '240px');
+  html += card(tid+'-qitrend', 'Quality Incidents Logged', 'Count per month — rising = more incidents, falling = fewer', '240px');
   if (tid !== 'imm') {
     html += card(tid+'-qctrd', 'QC Review Velocity', WIN+'-row rolling avg', '240px');
   } else {
@@ -2428,35 +2456,25 @@ function renderCharts(tid) {
       ]);
     } else if (tid !== 'imm') emptyChart(tid+'-qctrd');
 
-    // ER vs LIR/NCR monthly trend
-    if (erCumLabels.length) {
-      makeChart('chart-'+tid+'-erlir','line',erCumLabels,[
+    // Quality Incidents monthly trend
+    if (qiCumLabels.length) {
+      makeChart('chart-'+tid+'-qitrend','line',qiCumLabels,[
         {
-          label:'ER Number',
-          data:erCumData,
+          label:'Quality Incidents',
+          data:qiCumData,
           borderColor:CHART_COLORS.line,
-          backgroundColor:'transparent',
+          backgroundColor:'rgba(78,207,160,0.1)',
           borderWidth:2.5,
           pointRadius:4,
           pointHoverRadius:6,
-          fill:false,
-          tension:0.3
-        },
-        {
-          label:'LIR/NCR Number',
-          data:lirCumData,
-          borderColor:CHART_COLORS.bar2,
-          backgroundColor:'transparent',
-          borderWidth:2.5,
-          pointRadius:4,
-          pointHoverRadius:6,
-          fill:false,
+          fill:true,
           tension:0.3
         }
       ],{
+        plugins:{legend:{display:false}},
         scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}
       });
-    } else emptyChart(tid+'-erlir');
+    } else emptyChart(tid+'-qitrend');
 
     // Scatter: review length vs corrections
     if (scatterData.length) {
@@ -2990,7 +3008,7 @@ function applyTextStrike() {
           s.deleted.find(function(r){ return r.id === rowId; });
   if (r) { r[field] = ce.innerHTML; scheduleSave(); }
   // Update hold badge instantly if ER or LIR/NCR was struck
-  if (field === 'erLirNumber' || field === 'lirNcrNumber') updateHoldBadge(tid, rowId);
+  if (field === 'qualityIncidents') updateHoldBadge(tid, rowId);
 }
 
 // Date/calc cells: whole-cell strike on click
@@ -3472,9 +3490,8 @@ function rowHTML(tid, row, i, isDel) {
         var lotSuffix = isDel && row._dispositionedAt
           ? '<span class="disp-stamp">Dispositioned: ' + row._dispositionedAt + '</span>'
           : '';
-        // Hold badge — shown when ER Number or LIR/NCR Number is filled in AND not fully struck through
-        var hasER  = row.erLirNumber  && row.erLirNumber.replace(/<[^>]+>/g,'').trim();
-        var hasLIR = row.lirNcrNumber && row.lirNcrNumber.replace(/<[^>]+>/g,'').trim();
+        // Hold badge — shown when Quality Incidents is filled in AND not fully struck through
+        var hasQI = row.qualityIncidents && row.qualityIncidents.replace(/<[^>]+>/g,'').trim();
         // Check if the entire value is wrapped in a struck span (purple strikethrough)
         function isFullyStruck(html) {
           if (!html) return false;
@@ -3483,9 +3500,8 @@ function rowHTML(tid, row, i, isDel) {
           var unstruck = stripped.replace(/<span[^>]*class="struck"[^>]*>.*?<\/span>/g, '').replace(/<[^>]+>/g,'').trim();
           return stripped.length > 0 && unstruck.length === 0;
         }
-        var erHeld  = hasER  && !isFullyStruck(row.erLirNumber);
-        var lirHeld = hasLIR && !isFullyStruck(row.lirNcrNumber);
-        var holdBadge = (erHeld || lirHeld) ? '<span class="hold-badge">⚠ HOLD</span>' : '';
+        var qiHeld = hasQI && !isFullyStruck(row.qualityIncidents);
+        var holdBadge = qiHeld ? '<span class="hold-badge">⚠ HOLD</span>' : '';
         if (tid === 'imm') {
           var lc = row.lotChecks || {};
           var checked = Object.keys(lc).find(function(k){ return lc[k]; });
@@ -3697,8 +3713,7 @@ function calcRowHTML(tid, row, isDel) {
   var calcCols = T[tid].calcColOrder || DEFAULT_CALC_COLS[tid];
   return calcCols.map(function(colKey) {
     switch(colKey) {
-      case 'erLirNumber':   return calcTextTd('erLirNumber', row.erLirNumber, 'ER Number');
-      case 'lirNcrNumber':  return calcTextTd('lirNcrNumber', row.lirNcrNumber, 'LIR/NCR');
+      case 'qualityIncidents': return calcTextTd('qualityIncidents', row.qualityIncidents, 'Quality Incidents');
       case 'sterilityDate': return sterCell;
       case 'dIR':           return cCell(dIR);
       case 'dQA':           return cCell(dQA);
@@ -3723,9 +3738,9 @@ var DEFAULT_DATA_COLS = {
   biofire:['lotNumbers','dateIssued','dateManufactured','dateReturned','dateQAReturned','dateQCReturned','dateReviewMR','dateReviewQC','initialReviewDate','correctionsDate','prErrors','qaErrors','reviewCompleteDate']
 };
 var DEFAULT_CALC_COLS = {
-  imm:    ['erLirNumber','lirNcrNumber','dIR','dQA','dRR','rftCell','dispCell','corrCell'],
-  prompt: ['erLirNumber','lirNcrNumber','sterilityDate','dIR','dQA','dQC','dRR','rftCell','dispCell','corrCell'],
-  biofire:['erLirNumber','lirNcrNumber','dIR','dQA','dQC','dRR','rftCell','dispCell','corrCell']
+  imm:    ['qualityIncidents','dIR','dQA','dRR','rftCell','dispCell','corrCell'],
+  prompt: ['qualityIncidents','sterilityDate','dIR','dQA','dQC','dRR','rftCell','dispCell','corrCell'],
+  biofire:['qualityIncidents','dIR','dQA','dQC','dRR','rftCell','dispCell','corrCell']
 };
 var DEFAULT_TITLES = {
   imm:{
@@ -3734,7 +3749,7 @@ var DEFAULT_TITLES = {
     dateQAReturned:'Date Record Returned',initialReviewDate:'QA Review Date',
     correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
     prErrors:'PR Errors',qaErrors:'QA Errors',
-    erLirNumber:'ER Number',lirNcrNumber:'LIR/NCR Number',
+    qualityIncidents:'Quality Incidents',
     dIR:'PR Review Length',dQA:'QA Review Length',dRR:'Days Returned to Review',
     rftCell:'RFT %',dispCell:'Expected Disposition Date',corrCell:'Corrections'
   },
@@ -3745,7 +3760,7 @@ var DEFAULT_TITLES = {
     dateReviewQC:'QC Review Date',initialReviewDate:'QA Review Date',
     correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
     prErrors:'PR Errors',qaErrors:'QA Errors',
-    erLirNumber:'ER Number',lirNcrNumber:'LIR/NCR Number',sterilityDate:'Sterility Date',
+    qualityIncidents:'Quality Incidents',sterilityDate:'Sterility Date',
     dIR:'PR Review Length',dQA:'QA Review Length',dQC:'QC Review Length',
     dRR:'Days Returned to Review',rftCell:'RFT %',dispCell:'Expected Disposition Date',corrCell:'Corrections'
   },
@@ -3756,7 +3771,7 @@ var DEFAULT_TITLES = {
     dateReviewQC:'QC Review Date',initialReviewDate:'QA Review Date',
     correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
     prErrors:'PR Errors',qaErrors:'QA Errors',
-    erLirNumber:'ER Number',lirNcrNumber:'LIR/NCR Number',
+    qualityIncidents:'Quality Incidents',
     dIR:'PR Review Length',dQA:'QA Review Length',dQC:'QC Review Length',
     dRR:'Days Returned to Review',rftCell:'RFT %',dispCell:'Expected Disposition Date',corrCell:'Corrections'
   }
@@ -4141,11 +4156,9 @@ function updateHoldBadge(tid, rowId) {
     return html.trim().length > 0 && unstruck.length === 0;
   }
 
-  var hasER  = row.erLirNumber  && row.erLirNumber.replace(/<[^>]+>/g,'').trim();
-  var hasLIR = row.lirNcrNumber && row.lirNcrNumber.replace(/<[^>]+>/g,'').trim();
-  var erHeld  = hasER  && !isFullyStruck(row.erLirNumber);
-  var lirHeld = hasLIR && !isFullyStruck(row.lirNcrNumber);
-  var shouldShow = !!(erHeld || lirHeld);
+  var hasQI = row.qualityIncidents && row.qualityIncidents.replace(/<[^>]+>/g,'').trim();
+  var qiHeld = hasQI && !isFullyStruck(row.qualityIncidents);
+  var shouldShow = !!qiHeld;
 
   var existing = td.querySelector('.hold-badge');
   if (shouldShow && !existing) {
@@ -4449,7 +4462,7 @@ function updHtml(el) {
           s.deleted.find(function(r){ return r.id === rowId; });
   if (r) r[field] = el.innerHTML;
   // Update hold badge live when ER or LIR/NCR fields change
-  if (field === 'erLirNumber' || field === 'lirNcrNumber') updateHoldBadge(tid, rowId);
+  if (field === 'qualityIncidents') updateHoldBadge(tid, rowId);
   // Only expand row height if content has grown — no full reflow
   var mainTr = document.querySelector('#' + tid + '-tbody tr[data-id="' + rowId + '"]');
   if (mainTr) {
@@ -4471,7 +4484,7 @@ function updHtmlBlur(el) {
     scheduleSave();
   }
   // Update hold badge on blur (catches strike-through changes)
-  if (field === 'erLirNumber' || field === 'lirNcrNumber') updateHoldBadge(tid, rowId);
+  if (field === 'qualityIncidents') updateHoldBadge(tid, rowId);
   // Shrink row to natural minimum after edit
   collapseRowHeight(tid, rowId);
 }
