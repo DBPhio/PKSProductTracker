@@ -1349,6 +1349,25 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
       ]}));
     });
 
+    // ── Monthly breakdown — the quarter split into its 3 individual months ──
+    var monthly = computeMonthlyBreakdown(p.tid, _selectedQuarter);
+    var monthRows = [
+      new D.TableRow({ children: [
+        hdrCell('Month', 1900), hdrCell('Batches', 1400), hdrCell('Avg RFT %', 1600),
+        hdrCell('PR Errors', 1550), hdrCell('QA Errors', 1550)
+      ] })
+    ];
+    monthly.forEach(function(mo, i) {
+      var ms = mo.stats;
+      monthRows.push(new D.TableRow({ children: [
+        bodyCell(mo.label, 1900, { shade: i % 2 === 1 }),
+        bodyCell(ms.totalBatches, 1400, { bold: true, shade: i % 2 === 1 }),
+        bodyCell(ms.avgRft !== null ? ms.avgRft + '%' : '—', 1600, { bold: true, shade: i % 2 === 1 }),
+        bodyCell(ms.totalPrErr, 1550, { bold: true, shade: i % 2 === 1 }),
+        bodyCell(ms.totalQaErr, 1550, { bold: true, shade: i % 2 === 1 })
+      ] }));
+    });
+
     return [
       new D.Paragraph({ children: [new D.PageBreak()] }),
       new D.Paragraph({
@@ -1359,6 +1378,13 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
       }),
       new D.Paragraph({ text: '', spacing: { after: 150 } }),
       new D.Table({ width: { size: 8000, type: D.WidthType.DXA }, columnWidths: [5200, 2800], rows: rows, alignment: D.AlignmentType.CENTER }),
+      new D.Paragraph({ text: '', spacing: { before: 300, after: 150 } }),
+      new D.Paragraph({
+        alignment: D.AlignmentType.CENTER,
+        children: [new D.TextRun({ text: 'Monthly Breakdown', bold: true, size: SIZE, font: FONT, color: DARKTXT })]
+      }),
+      new D.Paragraph({ text: '', spacing: { after: 150 } }),
+      new D.Table({ width: { size: 8000, type: D.WidthType.DXA }, columnWidths: [1900,1400,1600,1550,1550], rows: monthRows, alignment: D.AlignmentType.CENTER }),
       new D.Paragraph({ text: '', spacing: { before: 250 } }),
       new D.Paragraph({
         alignment: D.AlignmentType.CENTER,
@@ -3140,12 +3166,10 @@ function getSelectableQuarters() {
 // Computes the full set of quarterly stats for one panel — used by both
 // the in-app Quarterly Summary card and the exported Word report, so the
 // two always agree with each other.
-function computeQuarterlyStats(tid, quarterObj) {
-  var s = T[tid];
-  var dispAll = (s.deleted || []).concat(s.archived || []);
-  var disp = quarterObj === 'all' ? dispAll
-    : dispAll.filter(function(r){ return isDateInQuarter(r._dispositionedAt, quarterObj.q, quarterObj.y); });
-
+// Core stat calculation for an already-filtered set of dispositioned rows —
+// factored out so both the full-quarter view and the per-month breakdown
+// (used in the exported report) always compute things identically.
+function computeStatsForRowSet(tid, disp) {
   var TRANSACTIONS = { imm: 4498, prompt: 4373, biofire: 4000 };
   var totalTx = TRANSACTIONS[tid] || 0;
   function calcRft(r) {
@@ -3203,6 +3227,36 @@ function computeQuarterlyStats(tid, quarterObj) {
     avgRR: avgOf(rrArr),
     lagEarly: lagEarly, lagOnTime: lagOnTime, lagLate: lagLate
   };
+}
+
+function computeQuarterlyStats(tid, quarterObj) {
+  var s = T[tid];
+  var dispAll = (s.deleted || []).concat(s.archived || []);
+  var disp = quarterObj === 'all' ? dispAll
+    : dispAll.filter(function(r){ return isDateInQuarter(r._dispositionedAt, quarterObj.q, quarterObj.y); });
+  return computeStatsForRowSet(tid, disp);
+}
+
+// Breaks a specific quarter down into its 3 individual months, computing
+// the same stat set for each — used to add a monthly breakdown table to
+// the exported quarterly report.
+function computeMonthlyBreakdown(tid, quarterObj) {
+  if (quarterObj === 'all') return [];
+  var s = T[tid];
+  var dispAll = (s.deleted || []).concat(s.archived || []);
+  var startMonth = (quarterObj.q - 1) * 3; // 0-indexed
+  var months = [];
+  for (var i = 0; i < 3; i++) {
+    var m = startMonth + i;
+    var y = quarterObj.y;
+    var monthRows = dispAll.filter(function(r) {
+      var d = parseLocalDate(r._dispositionedAt);
+      return d && d.getMonth() === m && d.getFullYear() === y;
+    });
+    var monthName = new Date(y, m, 1).toLocaleString('en-US', { month: 'long' });
+    months.push({ label: monthName + ' ' + y, stats: computeStatsForRowSet(tid, monthRows) });
+  }
+  return months;
 }
 
 function dBetween(a, b) {
