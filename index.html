@@ -1174,11 +1174,37 @@ function renderChartToImage(config, width, height) {
       }
     };
 
+    // Draws the raw value centered in each slice — Chart.js has no
+    // built-in data-label support, and this avoids pulling in an extra
+    // plugin library just for pie/doughnut charts like the Disposition
+    // Lag breakdown.
+    var sliceValueLabels = {
+      id: 'sliceValueLabels',
+      afterDatasetsDraw: function(chart) {
+        if (chart.config.type !== 'doughnut' && chart.config.type !== 'pie') return;
+        var ctx = chart.ctx;
+        var meta = chart.getDatasetMeta(0);
+        var values = chart.data.datasets[0].data;
+        ctx.save();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 15px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        meta.data.forEach(function(arc, i) {
+          var val = values[i];
+          if (!val) return; // skip zero-value slices — nothing to label
+          var pos = arc.tooltipPosition ? arc.tooltipPosition() : arc.getCenterPoint();
+          ctx.fillText(String(val), pos.x, pos.y);
+        });
+        ctx.restore();
+      }
+    };
+
     var mergedConfig = JSON.parse(JSON.stringify(config, function(k, v) { return typeof v === 'function' ? undefined : v; }));
     mergedConfig.options = mergedConfig.options || {};
     mergedConfig.options.responsive = false;
     mergedConfig.options.animation = false;
-    mergedConfig.plugins = [whiteBackground];
+    mergedConfig.plugins = [whiteBackground, sliceValueLabels];
 
     var chart = new Chart(canvas, mergedConfig);
     requestAnimationFrame(function() {
