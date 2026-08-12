@@ -2282,7 +2282,12 @@ function renderCharts(tid) {
   var rftTrendLabels = rftMonthKeys;
   var rftTrendData   = rftMonthKeys.map(function(k) {
     var arr = rftByMonth[k];
-    return Math.round((arr.reduce(function(a,b){return a+b;},0)/arr.length)*100)/100;
+    var avg = arr.reduce(function(a,b){return a+b;},0)/arr.length;
+    // Cap to 2 decimal places, always rounding UP (not standard rounding) —
+    // add a tiny epsilon first so values already exact to 2 decimals (e.g.
+    // 99.87000000000001 from floating-point math) don't get bumped up an
+    // extra hundredth by Math.ceil.
+    return Math.ceil(avg * 100 - 1e-9) / 100;
   });
   var rftTrendPrErr = rftMonthKeys.map(function(k){ return prErrByMonth[k] || 0; });
   var rftTrendQaErr = rftMonthKeys.map(function(k){ return qaErrByMonth[k] || 0; });
