@@ -1050,6 +1050,18 @@ function setSyncStatus(state) {
 //  DATA HELPERS
 // ================================================================
 
+// Finds a row by id across ALL three arrays — active, dispositioned, and
+// archived. Several edit handlers previously only checked rows+deleted,
+// which meant edits to archived rows were silently discarded with no error.
+function findRow(tid, id) {
+  var s = T[tid];
+  if (!s) return null;
+  return (s.rows || []).find(function(r){ return r.id === id; }) ||
+         (s.deleted || []).find(function(r){ return r.id === id; }) ||
+         (s.archived || []).find(function(r){ return r.id === id; }) ||
+         null;
+}
+
 function mkRow(id) {
   return { id:id, dateIssued:'', dateManufactured:'', lotNumbers:'', lotChecks:{}, qualityIncidents:'', prInitialReview:'', dateReturned:'', dateQAReturned:'', dateQCReturned:'', sterilityDate:'', initialReviewDate:'', reviewCompleteDate:'', dateReviewMR:'', dateReviewQC:'', correctionsDate:'', correctionsComplete:false, prErrors:'', qaErrors:'', done:false, strikes:{}, _cellMeta:{} };
 }
@@ -2684,8 +2696,9 @@ function dispositionRow(e, tid, rowId) {
   e.stopPropagation();
   var r = T[tid].rows.find(function(r){ return r.id === rowId; });
   if (!r) return;
-  r.done = true;
-  deleteChecked(tid);
+  // Disposition ONLY this row — passing an explicit single-row list avoids
+  // sweeping up any other rows the user may have checked for another purpose.
+  dispositionRows(tid, [r]);
 }
 
 function duplicateRow(e, tid, rowId) {
@@ -3073,8 +3086,7 @@ function applyTextStrike() {
   var rowId = parseInt(ce.dataset.rowid, 10);
   var field = ce.dataset.field;
   var s = T[tid];
-  var r = s.rows.find(function(r){ return r.id === rowId; }) ||
-          s.deleted.find(function(r){ return r.id === rowId; });
+  var r = findRow(tid, rowId);
   if (r) { r[field] = ce.innerHTML; scheduleSave(); }
   // Update hold badge instantly if ER or LIR/NCR was struck
   if (field === 'qualityIncidents') updateHoldBadge(tid, rowId);
@@ -3086,8 +3098,7 @@ function handleCellStrike(e, tid, rowId, field) {
   e.stopPropagation();
   if (!window._dateCellStrikeMode) return; // disabled until re-enabled
   var s = T[tid];
-  var r = s.rows.find(function(r){ return r.id === rowId; }) ||
-          s.deleted.find(function(r){ return r.id === rowId; });
+  var r = findRow(tid, rowId);
   if (!r) return;
   if (!r.strikes) r.strikes = {};
   r.strikes[field] = !r.strikes[field];
@@ -4179,8 +4190,7 @@ function render(tid, remoteIds) {
 function toggleLotCheck(e, tid, id, key, cb) {
   e.stopPropagation();
   var s = T[tid];
-  var r = s.rows.find(function(r){ return r.id === id; }) ||
-          s.deleted.find(function(r){ return r.id === id; });
+  var r = findRow(tid, id);
   if (!r) return;
   if (!r.lotChecks) r.lotChecks = {};
   // Uncheck all others if checking one
@@ -4198,8 +4208,7 @@ function toggleLotCheck(e, tid, id, key, cb) {
 
 function toggleCorrections(tid, id, cb) {
   var s = T[tid];
-  var r = s.rows.find(function(r){ return r.id === id; }) ||
-          s.deleted.find(function(r){ return r.id === id; });
+  var r = findRow(tid, id);
   if (!r) return;
   r.correctionsComplete = cb.checked;
   if (cb.checked && r.correctionsDate) {
@@ -4391,7 +4400,16 @@ function toggleAll(tid, cb) {
 }
 function deleteChecked(tid) {
   var s = T[tid];
-  var toDel = s.rows.filter(function(r){ return r.done; });
+  dispositionRows(tid, s.rows.filter(function(r){ return r.done; }));
+}
+
+// Shared disposition logic — takes an explicit list of rows so callers can
+// target exactly what they mean. deleteChecked() passes all checked rows;
+// dispositionRow() passes just the single row whose button was clicked
+// (previously it set done=true then called deleteChecked, which swept up
+// any OTHER rows the user happened to have checked — a data-loss risk).
+function dispositionRows(tid, toDel) {
+  var s = T[tid];
   if (!toDel.length) return;
   pushUndoState();
   toDel.forEach(function(row) {
@@ -4449,8 +4467,7 @@ function addRow(tid) {
 }
 function upd(tid, id, field, value) {
   var s = T[tid];
-  var r = s.rows.find(function(r){ return r.id === id; }) ||
-          s.deleted.find(function(r){ return r.id === id; });
+  var r = findRow(tid, id);
   if (!r) return;
   // Normalise date fields to MM/DD/YYYY on save
   var dateFields = ['dateIssued','dateManufactured','prInitialReview','dateReturned','dateQAReturned','dateQCReturned','initialReviewDate','reviewCompleteDate','sterilityDate','correctionsDate'];
@@ -4539,8 +4556,7 @@ function updateSingleRowCalc(tid, rowId) {
 
 function updNum(tid, id, field, value) {
   var s = T[tid];
-  var r = s.rows.find(function(r){ return r.id === id; }) ||
-          s.deleted.find(function(r){ return r.id === id; });
+  var r = findRow(tid, id);
   if (!r) return;
   var n = parseInt(value, 10);
   if (isNaN(n) || n < 0) n = value === '' ? '' : 0;
@@ -4555,8 +4571,7 @@ function updHtml(el) {
   var rowId = parseInt(el.dataset.rowid, 10);
   var field = el.dataset.field;
   var s = T[tid];
-  var r = s.rows.find(function(r){ return r.id === rowId; }) ||
-          s.deleted.find(function(r){ return r.id === rowId; });
+  var r = findRow(tid, rowId);
   if (r) r[field] = el.innerHTML;
   // Update hold badge live when ER or LIR/NCR fields change
   if (field === 'qualityIncidents') updateHoldBadge(tid, rowId);
@@ -4574,8 +4589,7 @@ function updHtmlBlur(el) {
   var rowId = parseInt(el.dataset.rowid, 10);
   var field = el.dataset.field;
   var s = T[tid];
-  var r = s.rows.find(function(r){ return r.id === rowId; }) ||
-          s.deleted.find(function(r){ return r.id === rowId; });
+  var r = findRow(tid, rowId);
   if (r) {
     stampAudit(r, field, el.innerHTML);
     scheduleSave();
