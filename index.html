@@ -982,6 +982,13 @@ function applyRemote(payload) {
     if (!T[tid].archiveSelected) T[tid].archiveSelected = new Set();
     if (!T[tid].colTitles)   T[tid].colTitles = {};
     if (remote.colTitles)    T[tid].colTitles = remote.colTitles;
+    // The "QA Errors" column was renamed to "QA Insp. Errors". A saved
+    // custom title takes precedence over the default, so drop any saved
+    // override that still holds the old name — otherwise the rename would
+    // silently never appear for anyone who has one stored.
+    if (T[tid].colTitles && T[tid].colTitles.qaErrors === 'QA Errors') {
+      delete T[tid].colTitles.qaErrors;
+    }
 
     // Reconcile saved column order/widths with the current schema —
     // ensures newly added columns (like PR Errors, QA Errors, RFT %)
@@ -1374,7 +1381,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
     { label: 'Total Batches Dispositioned', key: 'totalBatches', fmt: function(v){ return v; } },
     { label: 'Average RFT %', key: 'avgRft', fmt: function(v){ return v !== null ? v + '%' : '—'; } },
     { label: 'Total PR Errors', key: 'totalPrErr', fmt: function(v){ return v; } },
-    { label: 'Total QA Errors', key: 'totalQaErr', fmt: function(v){ return v; } },
+    { label: 'Total QA Insp. Errors', key: 'totalQaErr', fmt: function(v){ return v; } },
     { label: 'Corrections Rate', key: 'corrRate', fmt: function(v){ return v !== null ? v + '%' : '—'; } }
   ];
   var execRows = [
@@ -1401,7 +1408,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
       ['Total Batches Dispositioned', s.totalBatches],
       ['Average RFT %', s.avgRft !== null ? s.avgRft + '%' : '—'],
       ['Total PR Errors', s.totalPrErr],
-      ['Total QA Errors', s.totalQaErr],
+      ['Total QA Insp. Errors', s.totalQaErr],
       ['Corrections Rate', s.corrRate !== null ? s.corrRate + '%' : '—'],
       ['Avg PR Review Length (days)', s.avgPrReview !== null ? s.avgPrReview : '—'],
       ['Avg QA Review Length (days)', s.avgQaReview !== null ? s.avgQaReview : '—']
@@ -1420,7 +1427,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
     var monthRows = [
       new D.TableRow({ children: [
         hdrCell('Month', 1900), hdrCell('Batches', 1400), hdrCell('Avg RFT %', 1600),
-        hdrCell('PR Errors', 1550), hdrCell('QA Errors', 1550)
+        hdrCell('PR Errors', 1550), hdrCell('QA Insp. Errors', 1550)
       ] })
     ];
     monthly.forEach(function(mo, i) {
@@ -2409,7 +2416,7 @@ function renderCharts(tid) {
     { label:'Total Batches', val: qtrTotalBatches, unit:'', delta: qoq ? qoq.batchesDelta : null, deltaUnit:'' },
     { label:'Avg RFT %', val: qtrAvgRft, unit:'%', delta: qoq ? qoq.rftDelta : null, deltaUnit:'%' },
     { label:'Total PR Errors', val: qtrTotalPrErr, unit:'' },
-    { label:'Total QA Errors', val: qtrTotalQaErr, unit:'' },
+    { label:'Total QA Insp. Errors', val: qtrTotalQaErr, unit:'' },
     { label:'Corrections Rate', val: qtrCorrRate, unit:'%' },
     { label:'Avg PR Review', val: avgOf(qtrPrReview), unit:'d' },
     { label:'Avg QA Review', val: avgOf(qtrQaReview), unit:'d' },
@@ -2446,7 +2453,7 @@ function renderCharts(tid) {
     { label:'Batches This Month', val: totalBatchesThisMonth, unit:'' },
     { label:'Avg RFT % This Month', val: avgRftThisMonth !== null ? avgRftThisMonth+'%' : null, unit:'' },
     { label:'PR Errors This Month', val: prErrorsThisMonth, unit:'' },
-    { label:'QA Errors This Month', val: qaErrorsThisMonth, unit:'' },
+    { label:'QA Insp. Errors This Month', val: qaErrorsThisMonth, unit:'' },
     { label:'Currently Dispositioned', val:(s.deleted||[]).length, unit:'' },
     { label:'Active', val:(s.rows||[]).length, unit:'' }
   ].filter(Boolean).forEach(function(st) {
@@ -2516,7 +2523,7 @@ function renderCharts(tid) {
                 var i = ctx.dataIndex;
                 return [
                   'PR Errors: ' + (rftTrendPrErr[i] || 0),
-                  'QA Errors: ' + (rftTrendQaErr[i] || 0)
+                  'QA Insp. Errors: ' + (rftTrendQaErr[i] || 0)
                 ];
               }
             }
@@ -3876,7 +3883,7 @@ var DEFAULT_TITLES = {
     prInitialReview:'PR Initial Review',dateReturned:'QA Initial Review',
     dateQAReturned:'Date Record Returned',initialReviewDate:'QA Review Date',
     correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
-    prErrors:'PR Errors',qaErrors:'QA Errors',
+    prErrors:'PR Errors',qaErrors:'QA Insp. Errors',
     qualityIncidents:'Quality Incidents',
     dIR:'PR Review Length',dQA:'QA Review Length',dRR:'Days Returned to Review',
     rftCell:'RFT %',dispCell:'Expected Disposition Date',corrCell:'Corrections'
@@ -3887,7 +3894,7 @@ var DEFAULT_TITLES = {
     dateQCReturned:'Date QC Returned',dateReviewMR:'PR Review Date',
     dateReviewQC:'QC Review Date',initialReviewDate:'QA Review Date',
     correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
-    prErrors:'PR Errors',qaErrors:'QA Errors',
+    prErrors:'PR Errors',qaErrors:'QA Insp. Errors',
     qualityIncidents:'Quality Incidents',sterilityDate:'Sterility Date',
     dIR:'PR Review Length',dQA:'QA Review Length',dQC:'QC Review Length',
     dRR:'Days Returned to Review',rftCell:'RFT %',dispCell:'Expected Disposition Date',corrCell:'Corrections'
@@ -3898,7 +3905,7 @@ var DEFAULT_TITLES = {
     dateQCReturned:'Date QC Returned',dateReviewMR:'PR Review Date',
     dateReviewQC:'QC Review Date',initialReviewDate:'QA Review Date',
     correctionsDate:'Corrections',reviewCompleteDate:'Review Complete Date',
-    prErrors:'PR Errors',qaErrors:'QA Errors',
+    prErrors:'PR Errors',qaErrors:'QA Insp. Errors',
     qualityIncidents:'Quality Incidents',
     dIR:'PR Review Length',dQA:'QA Review Length',dQC:'QC Review Length',
     dRR:'Days Returned to Review',rftCell:'RFT %',dispCell:'Expected Disposition Date',corrCell:'Corrections'
