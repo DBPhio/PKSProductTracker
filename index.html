@@ -502,6 +502,7 @@
             <span class="panel-title">Prompt</span>
             <span class="badge" id="prompt-count">3 rows</span>
             <span class="badge badge-del" id="prompt-dbadge" style="display:none"></span>
+            <span class="panel-stat" id="prompt-stat"></span>
           </div>
           <div class="panel-actions">
             <button class="btn btn-r" id="prompt-rbtn" onclick="restoreAll('prompt')" style="display:none;font-size:10pt;">Restore <span id="prompt-rcount"></span></button><button class="btn-perm-del" id="prompt-pdel" onclick="permDeleteSelected('prompt')" style="display:none;font-size:10pt;">Delete <span id="prompt-pcount"></span> permanently</button><button class="btn btn-r" id="prompt-arbtn" onclick="restoreFromArchive('prompt')" style="display:none;font-size:10pt;" title="Restore from archive">🗄 Restore <span id="prompt-arcount"></span></button>
@@ -554,6 +555,7 @@
             <span class="panel-title">BioFire</span>
             <span class="badge" id="biofire-count">3 rows</span>
             <span class="badge badge-del" id="biofire-dbadge" style="display:none"></span>
+            <span class="panel-stat" id="biofire-stat"></span>
           </div>
           <div class="panel-actions">
             <button class="btn btn-r" id="biofire-rbtn" onclick="restoreAll('biofire')" style="display:none;font-size:10pt;">Restore <span id="biofire-rcount"></span></button><button class="btn-perm-del" id="biofire-pdel" onclick="permDeleteSelected('biofire')" style="display:none;font-size:10pt;">Delete <span id="biofire-pcount"></span> permanently</button><button class="btn btn-r" id="biofire-arbtn" onclick="restoreFromArchive('biofire')" style="display:none;font-size:10pt;" title="Restore from archive">🗄 Restore <span id="biofire-arcount"></span></button>
@@ -625,6 +627,15 @@ const DEFAULT_COL_W        = [28,26,80,108,108,108,108,108,108,108,75,75,108,98,
 const DEFAULT_COL_W_PROMPT = [28,26,80,108,108,108,108,108,108,108,108,108,75,75,108,98,98,75,75,75,75,80,82,75]; // 24 cols (Prompt)
 const DEFAULT_COL_W_BIOFIRE= [28,26,80,108,108,108,108,108,108,108,108,108,75,75,108,98,75,75,75,75,80,82,75]; // 23 cols (BioFire)
 const CALC_COL_COUNT = { imm: 7, prompt: 9, biofire: 8 }; // how many cols live in the fixed calc panel
+
+// ── Canonical business constants — SINGLE SOURCE OF TRUTH ──────
+// These were previously copy-pasted in several places, which risked the
+// tracker, metrics tab and exported report silently disagreeing if one
+// copy was updated and another missed.
+const TRANSACTIONS = { imm: 4498, prompt: 4373, biofire: 4000 }; // RFT % denominator per panel
+const DISP_OFFSET  = { imm: 6,    prompt: 18,   biofire: 6 };    // days from Date PR Ended before overdue
+function dispOffsetFor(tid) { return DISP_OFFSET[tid] !== undefined ? DISP_OFFSET[tid] : 6; }
+function transactionsFor(tid) { return TRANSACTIONS[tid] || 0; }
 const MY_ID = Math.random().toString(36).slice(2,8);
 
 const T = {};
@@ -774,13 +785,29 @@ function initFirebaseListeners() {
       var name = currentUser ? (currentUser.displayName || currentUser.email || 'Unknown') : 'Unknown';
       presRef.set({ ts: Date.now(), name: name, uid: MY_ID });
     }
+    // Each page load generates a fresh MY_ID, so without cleanup these entries
+    // accumulate in Firebase forever and get re-downloaded on every presence
+    // change. Let Firebase drop ours automatically when the socket closes.
+    if (presRef.onDisconnect) {
+      try { presRef.onDisconnect().remove(); } catch (e) { /* non-fatal */ }
+    }
     markPresent();
     setInterval(markPresent, 8000);
+    window.addEventListener('pagehide', function(){ try { presRef.remove(); } catch(e){} });
 
     // Count active users and show names on hover
     fbDatabase.ref('qa-tracker/presence').on('value', function(snap) {
       var all   = snap.val() || {};
       var now   = Date.now();
+      // Belt-and-braces cleanup for entries onDisconnect never got to remove
+      // (hard crash, lost connection). Anything untouched for an hour is dead.
+      Object.keys(all).forEach(function(k) {
+        var e = all[k];
+        if (!e || typeof e.ts !== 'number' || now - e.ts > 3600000) {
+          try { fbDatabase.ref('qa-tracker/presence/' + k).remove(); } catch (err) { /* non-fatal */ }
+          delete all[k];
+        }
+      });
       var active = Object.entries(all).filter(function(kv){ return now - kv[1].ts < 20000; });
       var count  = active.length;
       var usersEl = document.getElementById('sync-users');
@@ -1010,29 +1037,67 @@ function applyRemote(payload) {
   }
 }
 
-function scheduleSave() {
+// scheduleSave(tid) records WHICH panel changed so the save can write just
+// that panel's branch. Called with no argument (or an unknown one) it marks
+// every panel dirty, which reproduces the old whole-payload behaviour — so
+// any call site that can't cheaply name its panel stays correct.
+var _dirtyPanels = {};
+function markDirty(tid) {
+  if (tid && IDS.indexOf(tid) !== -1) _dirtyPanels[tid] = true;
+  else IDS.forEach(function(t){ _dirtyPanels[t] = true; });
+}
+function scheduleSave(tid) {
+  markDirty(tid);
   showSaveIndicator('saving');
   clearTimeout(saveTimer);
+  _savePending = true;
   saveTimer = setTimeout(pushToFirebase, 800);
+}
+
+// Saves are debounced 800ms, so closing the tab (or switching away on mobile)
+// inside that window used to silently drop the last edit. Flush immediately
+// on unload / tab-hide instead.
+var _savePending = false;
+function flushPendingSave() {
+  if (!_savePending) return;
+  clearTimeout(saveTimer);
+  pushToFirebase();
+}
+window.addEventListener('beforeunload', flushPendingSave);
+window.addEventListener('pagehide', flushPendingSave);
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden') flushPendingSave();
+});
+
+function panelPayload(tid) {
+  return {
+    rows:          T[tid].rows,
+    deleted:       T[tid].deleted,
+    archived:      T[tid].archived || [],
+    nextId:        T[tid].nextId,
+    colTitles:     T[tid].colTitles    || {},
+    dataColOrder:  T[tid].dataColOrder || null,
+    calcColOrder:  T[tid].calcColOrder || null,
+    colWidths:     T[tid].colWidths    || null
+  };
 }
 
 function pushToFirebase() {
   if (!fbDatabase) return;
+  _savePending = false;
   setSyncStatus('saving');
-  var payload = { updatedBy: MY_ID, updatedAt: Date.now(), tables: {} };
-  IDS.forEach(function(tid) {
-    payload.tables[tid] = {
-      rows:          T[tid].rows,
-      deleted:       T[tid].deleted,
-      archived:      T[tid].archived || [],
-      nextId:        T[tid].nextId,
-      colTitles:     T[tid].colTitles    || {},
-      dataColOrder:  T[tid].dataColOrder || null,
-      calcColOrder:  T[tid].calcColOrder || null,
-      colWidths:     T[tid].colWidths    || null
-    };
-  });
-  fbDatabase.ref('qa-tracker/data').set(payload)
+
+  // Write ONLY the panels that actually changed, as separate child paths.
+  // Previously every save replaced the whole document, so two people editing
+  // different panels at the same time could wipe out each other's work.
+  var dirty = IDS.filter(function(t){ return _dirtyPanels[t]; });
+  if (!dirty.length) dirty = IDS.slice(); // nothing recorded → be safe, write all
+  _dirtyPanels = {};
+
+  var updates = { updatedBy: MY_ID, updatedAt: Date.now() };
+  dirty.forEach(function(tid) { updates['tables/' + tid] = panelPayload(tid); });
+
+  fbDatabase.ref('qa-tracker/data').update(updates)
     .then(function() {
       setSyncStatus('live');
       showSaveIndicator('saved');
@@ -1127,8 +1192,7 @@ function buildCsvForPanel(tid) {
     ['Days Returned to Review (days)','RFT %','Dispositioned Date']
   );
 
-  var TRANSACTIONS = { imm: 4498, prompt: 4373, biofire: 4000 };
-  var totalTx = TRANSACTIONS[tid] || 0;
+  var totalTx = transactionsFor(tid);
 
   var rows = allRows.map(function(r) {
     var status = (s.archived || []).indexOf(r) !== -1 ? 'Archived' :
@@ -2248,7 +2312,7 @@ function renderCharts(tid) {
   var lagLabels = [], lagExpected = [], lagActual = [], lagDiff = [];
   disp.forEach(function(r, idx) {
     if (!r._dispositionedAt || !r.dateManufactured) return;
-    var offset  = tid === 'prompt' ? 18 : 6;
+    var offset  = dispOffsetFor(tid);
     var base    = parseLocalDate(r.dateManufactured);
     if (!base) return;
     var expDate = new Date(base.getTime() + offset*86400000);
@@ -2298,8 +2362,7 @@ function renderCharts(tid) {
   var qiCumData   = allMonths.map(function(m){ return qiMonthly[m] || 0; });
 
   // ── RFT % — monthly average + current month stats ────────────
-  var TRANSACTIONS = { imm: 4498, prompt: 4373, biofire: 4000 };
-  var totalTx = TRANSACTIONS[tid] || 0;
+  var totalTx = transactionsFor(tid);
   function calcRft(r) {
     var prErr = (r.prErrors === '' || r.prErrors == null) ? 0 : parseInt(r.prErrors, 10) || 0;
     var qaErr = (r.qaErrors === '' || r.qaErrors == null) ? 0 : parseInt(r.qaErrors, 10) || 0;
@@ -2689,7 +2752,7 @@ function applyOverdueHighlight(tid) {
     if (!tr) return;
     var overdue = false;
     if (row.dateManufactured && !row.reviewCompleteDate) {
-      var offset = tid === 'prompt' ? 18 : 6;
+      var offset = dispOffsetFor(tid);
       var base   = parseLocalDate(row.dateManufactured);
       if (base) {
         var exp = new Date(base.getTime() + offset * 86400000);
@@ -2750,7 +2813,7 @@ function duplicateRow(e, tid, rowId) {
   var idx = s.rows.indexOf(r);
   s.rows.splice(idx + 1, 0, copy);
   scheduleRender(tid);
-  scheduleSave();
+  scheduleSave(tid);
   setTimeout(function() {
     scrollToNewRow(tid, copy.id);
   }, 80);
@@ -2951,6 +3014,10 @@ function pushUndoState() {
 
 function undoLast() {
   if (_undoStack.length === 0) return;
+  // A disposition may still be waiting out its flash animation — cancel it,
+  // otherwise it would land after the rollback and re-apply the very change
+  // the user just undid.
+  cancelPendingDispositions();
   var snapshot = _undoStack.pop();
   IDS.forEach(function(tid) {
     T[tid].rows     = snapshot[tid].rows;
@@ -2997,7 +3064,7 @@ function toggleRow(tid, id, cb) {
     var anyChecked = T[tid].rows.some(function(r){ return r.done; });
     var dbtn = document.getElementById(tid + '-dbtn');
     if (dbtn) dbtn.style.display = anyChecked ? 'inline-block' : 'none';
-    scheduleSave();
+    scheduleSave(tid);
   }
   _lastCheckedRow[tid] = id;
 }
@@ -3014,7 +3081,7 @@ function handleRowCheck(e, tid, id, cb) {
       for (var i = lo; i <= hi; i++) s.rows[i].done = cb.checked;
       _lastCheckedRow[tid] = id;
       render(tid);
-      scheduleSave();
+      scheduleSave(tid);
       return;
     }
   }
@@ -3122,7 +3189,7 @@ function applyTextStrike() {
   var field = ce.dataset.field;
   var s = T[tid];
   var r = findRow(tid, rowId);
-  if (r) { r[field] = ce.innerHTML; scheduleSave(); }
+  if (r) { r[field] = ce.innerHTML; scheduleSave(tid); }
   // Update hold badge instantly if ER or LIR/NCR was struck
   if (field === 'qualityIncidents') updateHoldBadge(tid, rowId);
 }
@@ -3138,7 +3205,7 @@ function handleCellStrike(e, tid, rowId, field) {
   if (!r.strikes) r.strikes = {};
   r.strikes[field] = !r.strikes[field];
   render(tid);
-  scheduleSave();
+  scheduleSave(tid);
 }
 
 // Parse date string — accepts YYYY-MM-DD, MM/DD/YYYY, M/D/YYYY, MM-DD-YYYY
@@ -3247,8 +3314,7 @@ function getSelectableQuarters() {
 // factored out so both the full-quarter view and the per-month breakdown
 // (used in the exported report) always compute things identically.
 function computeStatsForRowSet(tid, disp) {
-  var TRANSACTIONS = { imm: 4498, prompt: 4373, biofire: 4000 };
-  var totalTx = TRANSACTIONS[tid] || 0;
+  var totalTx = transactionsFor(tid);
   function calcRft(r) {
     var prErr = (r.prErrors === '' || r.prErrors == null) ? 0 : parseInt(r.prErrors, 10) || 0;
     var qaErr = (r.qaErrors === '' || r.qaErrors == null) ? 0 : parseInt(r.qaErrors, 10) || 0;
@@ -3279,7 +3345,7 @@ function computeStatsForRowSet(tid, disp) {
     if (v !== null && v >= 0) rrArr.push(v);
 
     if (r._dispositionedAt && r.dateManufactured) {
-      var offset = tid === 'prompt' ? 18 : 6;
+      var offset = dispOffsetFor(tid);
       var base = parseLocalDate(r.dateManufactured);
       if (base) {
         var expDate = new Date(base.getTime() + offset * 86400000);
@@ -3777,7 +3843,7 @@ function calcRowHTML(tid, row, isDel) {
     '</div></td>';
 
   // Expected Disposition Date: PR Ended + offset (IMM/BioFire: +6 days, Prompt: +18 days)
-  var dispOffset = tid === 'prompt' ? 18 : 6;
+  var dispOffset = dispOffsetFor(tid);
   var dispCell = '';
 
   // ── BioFire campaign detection ─────────────────────────────
@@ -3791,8 +3857,13 @@ function calcRowHTML(tid, row, isDel) {
     var campMatch = lotRaw.match(/^(.+)[A-Za-z]$/);
     if (campMatch) {
       var campRoot = campMatch[1];
-      // Collect all BioFire rows (active + deleted) with same root
-      var allBF = (T.biofire.rows || []).concat(T.biofire.deleted || []);
+      // Collect all BioFire rows with the same root — active, dispositioned
+      // AND archived. Omitting archived meant a campaign lot silently dropped
+      // out of the shared baseline once it passed the archive age, which could
+      // shift the Expected Disposition Date of its remaining campaign-mates.
+      var allBF = (T.biofire.rows || [])
+        .concat(T.biofire.deleted || [])
+        .concat(T.biofire.archived || []);
       var campRows = allBF.filter(function(r) {
         var rLot = (r.lotNumbers || '').replace(/<[^>]+>/g,'').trim();
         var m = rLot.match(/^(.+)[A-Za-z]$/);
@@ -3817,12 +3888,24 @@ function calcRowHTML(tid, row, isDel) {
     if (prDate) {
       var expDate  = new Date(prDate.getTime() + dispOffset * 86400000);
       var expMid   = midnightLocal(expDate);
-      var todayMid = midnightLocal(new Date());
-      var daysLeft = Math.floor((expMid - todayMid) / 86400000);
       var em = expMid.getMonth()+1, ed = expMid.getDate(), ey = expMid.getFullYear();
       var expStr = (em<10?'0'+em:em) + '/' + (ed<10?'0'+ed:ed) + '/' + ey;
-      var counterCls = daysLeft < 0 ? 'expired' : (daysLeft <= 3 ? 'warn' : 'ok');
-      var counterTxt = daysLeft < 0 ? Math.abs(daysLeft) + 'd overdue' : daysLeft + 'd remaining';
+
+      // Once a row is dispositioned the countdown must FREEZE at the date it
+      // was actually completed — otherwise every finished row eventually reads
+      // "Xd overdue" in red even when it was finished on time.
+      var dispMid = row._dispositionedAt ? parseLocalDate(row._dispositionedAt) : null;
+      var counterCls, counterTxt;
+      if (dispMid) {
+        var lag = Math.floor((midnightLocal(dispMid) - expMid) / 86400000);
+        counterCls = lag > 0 ? 'expired' : 'ok';
+        counterTxt = lag > 0 ? lag + 'd late' : (lag === 0 ? 'on time' : Math.abs(lag) + 'd early');
+      } else {
+        var todayMid = midnightLocal(new Date());
+        var daysLeft = Math.floor((expMid - todayMid) / 86400000);
+        counterCls = daysLeft < 0 ? 'expired' : (daysLeft <= 3 ? 'warn' : 'ok');
+        counterTxt = daysLeft < 0 ? Math.abs(daysLeft) + 'd overdue' : daysLeft + 'd remaining';
+      }
       dispCell = '<td class="ca"><div style="text-align:center;">' +
         '<span style="font-family:var(--aptos);font-size:var(--fs);color:var(--green-txt);">' + expStr + '</span><br>' +
         '<span class="disp-lag-counter sterility-counter ' + counterCls + '">' + counterTxt + '</span>' +
@@ -3832,8 +3915,7 @@ function calcRowHTML(tid, row, isDel) {
   if (!dispCell) dispCell = '<td class="ca" style="color:var(--txt3);">—</td>';
 
   // RFT % — (Total Transactions - PR Errors - QA Errors) / Total Transactions * 100
-  var TRANSACTIONS = { imm: 4498, prompt: 4373, biofire: 4000 };
-  var totalTx = TRANSACTIONS[tid] || 0;
+  var totalTx = transactionsFor(tid);
   var prErr = (row.prErrors === '' || row.prErrors == null) ? 0 : parseInt(row.prErrors, 10) || 0;
   var qaErr = (row.qaErrors === '' || row.qaErrors == null) ? 0 : parseInt(row.qaErrors, 10) || 0;
   var rftPct = totalTx > 0 ? Math.max(0, (totalTx - prErr - qaErr) / totalTx * 100) : null;
@@ -4022,7 +4104,7 @@ function injectColHeaderHandlers(tid) {
         wArr.splice(colTo, 0, wMoved);
         s.colWidths = wArr;
         render(tid);
-        scheduleSave();
+        scheduleSave(tid);
       };
       // Double-click to edit title
       th.ondblclick = function(e) {
@@ -4044,7 +4126,7 @@ function injectColHeaderHandlers(tid) {
           th.textContent = val;
           th.setAttribute('draggable','true');
           injectColHeaderHandlers(tid);
-          scheduleSave();
+          scheduleSave(tid);
         }
         input.addEventListener('blur', saveTitle);
         input.addEventListener('keydown', function(e) {
@@ -4135,11 +4217,14 @@ function render(tid, remoteIds) {
       if (s.permSelected.has(row.id)) tr.classList.add('del-row-selected');
       tr.innerHTML = rowHTML(tid, row, s.rows.length + i, true);
       tbody.appendChild(tr);
-      // Calc del row
+      // Calc del row — carries BOTH data-delid (mirroring the dark section,
+      // so section-wide selectors work the obvious way) and data-id (which
+      // existing single-row lookups rely on).
       if (calcTbody) {
         var ctr = document.createElement('tr');
         ctr.style.opacity = opacity;
-        ctr.dataset.id = row.id;
+        ctr.dataset.id    = row.id;
+        ctr.dataset.delid = row.id;
         if (isCollapsed) ctr.style.display = 'none';
         if (s.permSelected.has(row.id)) ctr.classList.add('del-row-selected');
         ctr.innerHTML = calcRowHTML(tid, row, true);
@@ -4230,7 +4315,7 @@ function toggleLotCheck(e, tid, id, key, cb) {
   // Lot checks only affect the dark-section Lot Numbers cell — no green
   // section values depend on them, so a full panel re-render isn't needed.
   updateSingleRowMain(tid, id);
-  scheduleSave();
+  scheduleSave(tid);
 }
 
 function toggleCorrections(tid, id, cb) {
@@ -4246,7 +4331,7 @@ function toggleCorrections(tid, id, cb) {
   // Corrections completion only affects the green-section Corrections cell —
   // no dark-section values depend on it, so update just that cell.
   updateSingleRowCalc(tid, id);
-  scheduleSave();
+  scheduleSave(tid);
 }
 
 function toggleDelRow(tid, id, cb) {
@@ -4307,12 +4392,8 @@ function toggleDispCollapse(tid) {
   document.querySelectorAll('#' + tid + '-tbody tr[data-delid]').forEach(function(tr) {
     tr.style.display = collapsed ? 'none' : '';
   });
-  document.querySelectorAll('#' + tid + '-calc-tbody tr[data-id]').forEach(function(ctr) {
-    // Only toggle calc rows that correspond to deleted rows
-    var id = parseInt(ctr.dataset.id, 10);
-    if (s.deleted.some(function(r){ return r.id === id; })) {
-      ctr.style.display = collapsed ? 'none' : '';
-    }
+  document.querySelectorAll('#' + tid + '-calc-tbody tr[data-delid]').forEach(function(ctr) {
+    ctr.style.display = collapsed ? 'none' : '';
   });
 
   // Update the toggle button icon
@@ -4382,7 +4463,7 @@ function restoreFromArchive(tid) {
   var restoreIds = new Set(toRestore.map(function(r){ return r.id; }));
   s.archived = s.archived.filter(function(r){ return !restoreIds.has(r.id); });
   s.archiveSelected.clear();
-  scheduleRender(tid); scheduleSave();
+  scheduleRender(tid); scheduleSave(tid);
   updateHeaderArchiveButtons(tid);
 }
 
@@ -4411,13 +4492,13 @@ function permDeleteSelected(tid) {
     s.deleted = s.deleted.filter(function(r){ return !s.permSelected.has(r.id); });
     s.permSelected.clear();
     scheduleRender(tid);
-    scheduleSave();
+    scheduleSave(tid);
     updateHeaderRestoreButtons(tid);
   }, 300);
 }
 function toggleAll(tid, cb) {
   T[tid].rows.forEach(function(r){ r.done = cb.checked; });
-  render(tid); scheduleSave();
+  render(tid); scheduleSave(tid);
 }
 function deleteChecked(tid) {
   var s = T[tid];
@@ -4429,6 +4510,15 @@ function deleteChecked(tid) {
 // dispositionRow() passes just the single row whose button was clicked
 // (previously it set done=true then called deleteChecked, which swept up
 // any OTHER rows the user happened to have checked — a data-loss risk).
+// Pending disposition timers, so an undo can cancel a move that hasn't
+// landed yet instead of letting it complete after the state was rolled back.
+var _pendingDispTimers = {};
+function cancelPendingDispositions() {
+  Object.keys(_pendingDispTimers).forEach(function(t) {
+    if (_pendingDispTimers[t]) { clearTimeout(_pendingDispTimers[t]); _pendingDispTimers[t] = null; }
+  });
+}
+
 function dispositionRows(tid, toDel) {
   var s = T[tid];
   if (!toDel.length) return;
@@ -4437,9 +4527,24 @@ function dispositionRows(tid, toDel) {
     var tr = document.querySelector('#' + tid + '-tbody tr[data-id="' + row.id + '"]');
     if (tr) tr.classList.add('flash');
   });
-  setTimeout(function() {
-    toDel.forEach(function(r) {
-      // Stamp the date it was dispositioned
+  // Capture IDs, not object references. The move is deferred 300ms for the
+  // flash animation, and in that window s.rows can be REPLACED wholesale —
+  // by an undo, or by a teammate's Firebase update arriving. Holding stale
+  // object references meant the "remove from rows" filter matched nothing
+  // while the push into deleted still happened, leaving the same row in both
+  // arrays (it showed up twice: once active, once dispositioned).
+  var delIds = toDel.map(function(r){ return r.id; });
+  _pendingDispTimers[tid] = setTimeout(function() {
+    _pendingDispTimers[tid] = null;
+    var st = T[tid];                 // re-read state; it may have been replaced
+    if (!st || !st.rows) return;
+    var moved = [];
+    delIds.forEach(function(id) {
+      // Re-resolve against the CURRENT rows. If it's gone (undone, restored,
+      // or already dispositioned by someone else) skip it rather than
+      // resurrecting a stale copy.
+      var r = st.rows.find(function(x){ return x.id === id; });
+      if (!r) return;
       var now = new Date();
       var m = now.getMonth()+1, d = now.getDate(), y = now.getFullYear();
       var todayStr = (m<10?'0'+m:m) + '/' + (d<10?'0'+d:d) + '/' + y;
@@ -4453,10 +4558,13 @@ function dispositionRows(tid, toDel) {
       r._snapQC = dBetween(r.dateReviewQC, r.dateQCReturned);
       r._snapRR = dBetween(r.dateReturned, r.reviewCompleteDate);
       r.done = false;
-      s.deleted.push(r);
+      // Guard against a double-add if it somehow already sits in deleted
+      if (!st.deleted.some(function(x){ return x.id === id; })) st.deleted.push(r);
+      moved.push(id);
     });
-    s.rows = s.rows.filter(function(r){ return toDel.indexOf(r) === -1; });
-    scheduleRender(tid); scheduleSave();
+    if (!moved.length) return;       // nothing left to do — don't churn state
+    st.rows = st.rows.filter(function(r){ return moved.indexOf(r.id) === -1; });
+    scheduleRender(tid); scheduleSave(tid);
   }, 300);
 }
 function restoreAll(tid) {
@@ -4475,7 +4583,7 @@ function restoreAll(tid) {
   var restoreIds = new Set(toRestore.map(function(r){ return r.id; }));
   s.deleted = s.deleted.filter(function(r){ return !restoreIds.has(r.id); });
   s.permSelected.clear();
-  scheduleRender(tid); scheduleSave();
+  scheduleRender(tid); scheduleSave(tid);
   updateHeaderRestoreButtons(tid);
 }
 function addRow(tid) {
@@ -4483,7 +4591,7 @@ function addRow(tid) {
   var newId = s.nextId++;
   s.rows.push(mkRow(newId));
   scheduleRender(tid);
-  scheduleSave();
+  scheduleSave(tid);
   setTimeout(function(){ scrollToNewRow(tid, newId); }, 120);
 }
 function upd(tid, id, field, value) {
@@ -4516,7 +4624,7 @@ function upd(tid, id, field, value) {
     var campMatch = lotRaw.match(/^(.+)[A-Za-z]$/);
     if (campMatch) {
       var campRoot = campMatch[1];
-      var allBF = (s.rows || []).concat(s.deleted || []);
+      var allBF = (s.rows || []).concat(s.deleted || [], s.archived || []);
       allBF.forEach(function(other) {
         if (other.id === id) return;
         var oLot = (other.lotNumbers || '').replace(/<[^>]+>/g,'').trim();
@@ -4526,7 +4634,7 @@ function upd(tid, id, field, value) {
     }
   }
 
-  scheduleSave();
+  scheduleSave(tid);
 }
 // Updates just one row's dark-section (main) cells in place — same
 // principle as updateSingleRowCalc but for the left/dark table, used when
@@ -4584,7 +4692,7 @@ function updNum(tid, id, field, value) {
   stampAudit(r, field, String(n));
   r[field] = n;
   updateSingleRowCalc(tid, id);
-  scheduleSave();
+  scheduleSave(tid);
 }
 // Contenteditable divs: save innerHTML so struck spans are preserved
 function updHtml(el) {
@@ -4613,7 +4721,7 @@ function updHtmlBlur(el) {
   var r = findRow(tid, rowId);
   if (r) {
     stampAudit(r, field, el.innerHTML);
-    scheduleSave();
+    scheduleSave(tid);
   }
   // Update hold badge on blur (catches strike-through changes)
   if (field === 'qualityIncidents') updateHoldBadge(tid, rowId);
@@ -4845,7 +4953,7 @@ function finishRowDrag() {
     }
     rows.splice(newTo, 0, moved);
     render(tid);
-    scheduleSave();
+    scheduleSave(tid);
   }
 
   rowDrag = null;
