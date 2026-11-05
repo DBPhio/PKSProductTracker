@@ -155,6 +155,11 @@
   .tab-btn:hover{color:var(--txt2);}
   .tab-btn.active{color:var(--green-txt);border-bottom-color:var(--green);}
   .quarter-select{background:var(--bg2);border:1px solid var(--border);border-radius:5px;color:var(--txt2);font-size:10pt;font-family:var(--aptos);padding:4px 8px;cursor:pointer;}
+  .custom-range-lbl{font-size:9.5pt;color:var(--txt3);font-family:var(--aptos);}
+  .custom-range-input{background:var(--bg2);border:1px solid var(--border);border-radius:5px;color:var(--txt2);font-size:9.5pt;font-family:var(--aptos);padding:3px 6px;cursor:pointer;color-scheme:dark;}
+  .custom-range-input:focus{outline:none;border-color:var(--green);}
+  .custom-range-input.invalid{border-color:#e05a5a;}
+  .custom-range-err{font-size:9pt;color:#e05a5a;font-family:var(--aptos);max-width:190px;}
   .quarter-select:focus{outline:none;border-color:var(--green);}
   .qtr-compare{font-size:9pt;font-family:var(--aptos);display:inline-flex;align-items:center;gap:2px;margin-left:6px;}
   .qtr-compare.up{color:var(--green-txt);}
@@ -433,6 +438,14 @@
     <button class="tab-btn" id="tab-biofire" onclick="switchTab('biofire')">📊 BioFire</button>
     <div id="quarter-controls" style="display:none;align-items:center;gap:8px;margin-left:auto;padding-right:6px;">
       <select id="quarter-select" class="quarter-select" onchange="onQuarterChange()"></select>
+      <span id="custom-range-controls" style="display:none;align-items:center;gap:5px;">
+        <label for="custom-start" class="custom-range-lbl">From</label>
+        <input type="date" id="custom-start" class="custom-range-input" onchange="onCustomRangeEdit()">
+        <label for="custom-end" class="custom-range-lbl">To</label>
+        <input type="date" id="custom-end" class="custom-range-input" onchange="onCustomRangeEdit()">
+        <button class="btn" id="custom-apply-btn" onclick="applyCustomRange()" style="font-size:10pt;">Apply</button>
+        <span id="custom-range-err" class="custom-range-err"></span>
+      </span>
       <button class="btn" id="report-btn" onclick="generateQuarterlyReport()" style="font-size:10pt;">📄 Generate Report</button>
     </div>
   </div>
@@ -1355,7 +1368,7 @@ function getRecentPeriods(current, count) {
 
 function generateQuarterlyReport() {
   if (isAllTime(_selectedQuarter)) {
-    alert('Select a month or a quarter (not "All Time") to generate a report.');
+    alert('Select a month, a quarter, or a custom range (not "All Time") to generate a report.');
     return;
   }
   if (typeof docx === 'undefined') {
@@ -1372,19 +1385,33 @@ function generateQuarterlyReport() {
     { tid: 'prompt',  name: 'Prompt',  color: BLUE,  rgb: 'rgba(100,150,220,1)' },
     { tid: 'biofire', name: 'BioFire', color: AMBER, rgb: 'rgba(200,150,20,1)' }
   ];
-  // Trend window follows the period's unit: last 6 months for a monthly
-  // report, last 4 quarters for a quarterly one.
-  var trendCount    = isMonthPeriod(_selectedQuarter) ? 6 : 4;
-  var recentPeriods = getRecentPeriods(_selectedQuarter, trendCount);
   var qStats = {}; // tid -> stats for the selected period
   PRODUCTS.forEach(function(p){ qStats[p.tid] = computeQuarterlyStats(p.tid, _selectedQuarter); });
 
+  // Trend window. For a month or quarter we walk BACK over prior periods
+  // (last 6 months / last 4 quarters) to give context. A custom range has
+  // no natural "previous N" to label readably, so instead we plot the
+  // range's own sub-segments — the same buckets its breakdown table uses.
+  var customTrend   = isCustomPeriod(_selectedQuarter);
+  var trendLabels, perProductTrend = {};
+  if (customTrend) {
+    PRODUCTS.forEach(function(p) { perProductTrend[p.tid] = computeMonthlyBreakdown(p.tid, _selectedQuarter); });
+    // Segments derive from the period alone, so every product shares them.
+    trendLabels = (perProductTrend[PRODUCTS[0].tid] || []).map(function(seg){ return seg.label; });
+  } else {
+    var trendCount    = isMonthPeriod(_selectedQuarter) ? 6 : 4;
+    var recentPeriods = getRecentPeriods(_selectedQuarter, trendCount);
+    trendLabels = recentPeriods.map(periodLabel);
+    PRODUCTS.forEach(function(p) {
+      perProductTrend[p.tid] = recentPeriods.map(function(per){ return { stats: computeQuarterlyStats(p.tid, per) }; });
+    });
+  }
+
   // ── Combined RFT % trend chart, one line per product ──
-  var trendLabels = recentPeriods.map(periodLabel);
   var trendDatasets = PRODUCTS.map(function(p) {
     return {
       label: p.name,
-      data: recentPeriods.map(function(per){ var s = computeQuarterlyStats(p.tid, per); return s.avgRft; }),
+      data: (perProductTrend[p.tid] || []).map(function(seg){ return seg.stats.avgRft; }),
       borderColor: p.rgb,
       backgroundColor: 'transparent',
       borderWidth: 2.5,
@@ -1440,10 +1467,20 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
   // Wording adapts to the period: a quarter breaks down into months, a
   // month into weeks, and the trend window differs in unit and length.
   var isMonthly     = isMonthPeriod(_selectedQuarter);
-  var kindWord      = periodKindWord(_selectedQuarter);        // 'Monthly' | 'Quarterly'
-  var subUnitLabel  = isMonthly ? 'Week' : 'Month';
-  var breakdownHead = isMonthly ? 'Weekly Breakdown' : 'Monthly Breakdown';
-  var trendHead     = isMonthly ? 'RFT % Trend — Last 6 Months' : 'RFT % Trend — Last 4 Quarters';
+  var isCustom      = isCustomPeriod(_selectedQuarter);
+  var kindWord      = periodKindWord(_selectedQuarter);   // 'Monthly' | 'Quarterly' | 'Custom'
+  var customUnit    = isCustom ? customBreakdownUnit(_selectedQuarter) : null; // day|week|month
+  var subUnitLabel, breakdownHead, trendHead;
+  if (isCustom) {
+    subUnitLabel  = customUnit === 'day' ? 'Day' : (customUnit === 'week' ? 'Week' : 'Month');
+    breakdownHead = subUnitLabel + 'ly Breakdown';
+    if (customUnit === 'day') breakdownHead = 'Daily Breakdown';
+    trendHead     = 'RFT % Trend — Selected Range';
+  } else {
+    subUnitLabel  = isMonthly ? 'Week' : 'Month';
+    breakdownHead = isMonthly ? 'Weekly Breakdown' : 'Monthly Breakdown';
+    trendHead     = isMonthly ? 'RFT % Trend — Last 6 Months' : 'RFT % Trend — Last 4 Quarters';
+  }
 
   function hdrCell(text, width) {
     return new D.TableCell({
@@ -1562,7 +1599,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
   var children = [
     new D.Paragraph({
       alignment: D.AlignmentType.CENTER,
-      children: [new D.TextRun({ text: kindWord + ' Summary Report', bold: true, size: SIZE, font: FONT, color: '1D9E75' })]
+      children: [new D.TextRun({ text: (isCustom ? 'Custom Range' : kindWord) + ' Summary Report', bold: true, size: SIZE, font: FONT, color: '1D9E75' })]
     }),
     new D.Paragraph({
       alignment: D.AlignmentType.CENTER,
@@ -2177,7 +2214,7 @@ function syncReportButton() {
     ? '\uD83D\uDCC4 Generate Report'
     : '\uD83D\uDCC4 Generate ' + periodKindWord(_selectedQuarter) + ' Report';
   btn.title = all
-    ? 'Pick a month or quarter to generate a report'
+    ? 'Pick a month, quarter or custom range to generate a report'
     : 'Generate a report for ' + periodLabel(_selectedQuarter);
 }
 
@@ -2202,12 +2239,72 @@ function populateQuarterSelect() {
   });
   html += '</optgroup>';
 
+  html += '<option value="custom">Custom Range\u2026</option>';
+
   sel.innerHTML = html;
   syncReportButton();
+  syncCustomRangeVisibility();
+}
+
+// The date fields only appear while "Custom Range…" is selected.
+function syncCustomRangeVisibility() {
+  var sel  = document.getElementById('quarter-select');
+  var wrap = document.getElementById('custom-range-controls');
+  if (!sel || !wrap) return;
+  wrap.style.display = (sel.value === 'custom') ? 'inline-flex' : 'none';
+}
+
+// Validates the two fields. Returns {ok, start, end, msg}.
+function readCustomRange() {
+  var sEl = document.getElementById('custom-start');
+  var eEl = document.getElementById('custom-end');
+  if (!sEl || !eEl) return { ok:false, msg:'' };
+  var s = sEl.value, e = eEl.value;
+  if (!s || !e) return { ok:false, start:s, end:e, msg:'Pick both dates.' };
+  var sd = isoToLocalDate(s), ed = isoToLocalDate(e);
+  if (!sd || !ed) return { ok:false, start:s, end:e, msg:'Invalid date.' };
+  if (ed < sd)   return { ok:false, start:s, end:e, msg:'End date is before start date.' };
+  return { ok:true, start:s, end:e, msg:'' };
+}
+
+function showCustomRangeError(msg) {
+  var err = document.getElementById('custom-range-err');
+  var sEl = document.getElementById('custom-start');
+  var eEl = document.getElementById('custom-end');
+  if (err) err.textContent = msg || '';
+  var bad = !!msg;
+  if (sEl) sEl.classList.toggle('invalid', bad);
+  if (eEl) eEl.classList.toggle('invalid', bad);
+}
+
+// Editing a field clears a stale error but doesn't apply until Apply is hit,
+// so the charts don't thrash while a date is half-typed.
+function onCustomRangeEdit() { showCustomRangeError(''); }
+
+function applyCustomRange() {
+  var r = readCustomRange();
+  if (!r.ok) { showCustomRangeError(r.msg); return; }
+  showCustomRangeError('');
+  _selectedQuarter = { type:'custom', start: r.start, end: r.end };
+  syncReportButton();
+  if (_activeTab !== 'tracker') renderCharts(_activeTab);
 }
 
 function onQuarterChange() {
   var sel = document.getElementById('quarter-select');
+  syncCustomRangeVisibility();
+
+  if (sel.value === 'custom') {
+    // Selecting "Custom Range…" only reveals the fields. If both are already
+    // filled and valid (e.g. switching back to a range used earlier) apply it
+    // straight away; otherwise wait for Apply rather than blanking the view.
+    var r = readCustomRange();
+    if (r.ok) { applyCustomRange(); }
+    else { showCustomRangeError(''); syncReportButton(); }
+    return;
+  }
+
+  showCustomRangeError('');
   _selectedQuarter = periodFromValue(sel.value);
   syncReportButton();
   if (_activeTab !== 'tracker') renderCharts(_activeTab);
@@ -3428,18 +3525,64 @@ function weekBoundsFor(d) {
 function isAllTime(p) { return !p || p === 'all'; }
 function isMonthPeriod(p)   { return !isAllTime(p) && p.type === 'month'; }
 function isQuarterPeriod(p) { return !isAllTime(p) && p.type === 'quarter'; }
+// A custom range carries start/end as 'YYYY-MM-DD' strings (native date input format)
+function isCustomPeriod(p)  { return !isAllTime(p) && p.type === 'custom'; }
+
+// ISO 'YYYY-MM-DD' -> local Date at midnight (avoids UTC shift of new Date(str))
+function isoToLocalDate(iso) {
+  if (!iso) return null;
+  var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  var d = new Date(parseInt(m[1],10), parseInt(m[2],10) - 1, parseInt(m[3],10));
+  return isNaN(d.getTime()) ? null : d;
+}
+function localDateToIso(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+// "Oct 1 – Oct 31, 2026" (year shown once when both ends share it)
+function customRangeLabel(p) {
+  var a = isoToLocalDate(p.start), b = isoToLocalDate(p.end);
+  if (!a || !b) return 'Custom Range';
+  var SH = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var left  = SH[a.getMonth()] + ' ' + a.getDate() + (a.getFullYear() === b.getFullYear() ? '' : ', ' + a.getFullYear());
+  var right = SH[b.getMonth()] + ' ' + b.getDate() + ', ' + b.getFullYear();
+  return left + ' \u2013 ' + right;
+}
+// Inclusive day count of a custom range
+function customRangeDays(p) {
+  var a = isoToLocalDate(p.start), b = isoToLocalDate(p.end);
+  if (!a || !b) return 0;
+  return Math.floor((midnightLocal(b) - midnightLocal(a)) / 86400000) + 1;
+}
 
 function periodLabel(p) {
   if (isAllTime(p)) return 'All Time';
+  if (isCustomPeriod(p)) return customRangeLabel(p);
   return isMonthPeriod(p) ? monthLabel(p.m, p.y) : quarterLabel(p.q, p.y);
 }
 function isDateInPeriod(dateStr, p) {
   if (isAllTime(p)) return true;
+  if (isCustomPeriod(p)) {
+    var d = parseLocalDate(dateStr);
+    var a = isoToLocalDate(p.start), b = isoToLocalDate(p.end);
+    if (!d || !a || !b) return false;
+    var dm = midnightLocal(d);
+    return dm >= midnightLocal(a) && dm <= midnightLocal(b);
+  }
   return isMonthPeriod(p) ? isDateInMonth(dateStr, p.m, p.y)
                           : isDateInQuarter(dateStr, p.q, p.y);
 }
 function getPreviousPeriod(p) {
   if (isAllTime(p)) return null;
+  if (isCustomPeriod(p)) {
+    // The immediately preceding window of equal length.
+    var a = isoToLocalDate(p.start), b = isoToLocalDate(p.end);
+    if (!a || !b) return null;
+    var days = customRangeDays(p);
+    var prevEnd   = new Date(a.getFullYear(), a.getMonth(), a.getDate() - 1);
+    var prevStart = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), prevEnd.getDate() - (days - 1));
+    return { type:'custom', start: localDateToIso(prevStart), end: localDateToIso(prevEnd) };
+  }
   if (isMonthPeriod(p)) { var pm = getPreviousMonth(p.m, p.y); return { type:'month', m: pm.m, y: pm.y }; }
   var pq = getPreviousQuarter(p.q, p.y);
   return { type:'quarter', q: pq.q, y: pq.y };
@@ -3447,6 +3590,7 @@ function getPreviousPeriod(p) {
 // Serialise/parse for the <select> value attribute
 function periodToValue(p) {
   if (isAllTime(p)) return 'all';
+  if (isCustomPeriod(p)) return 'custom';
   return isMonthPeriod(p) ? ('m:' + p.m + ':' + p.y) : ('q:' + p.q + ':' + p.y);
 }
 function periodFromValue(v) {
@@ -3456,10 +3600,16 @@ function periodFromValue(v) {
   if (parts[0] === 'q') return { type:'quarter', q: parseInt(parts[1],10), y: parseInt(parts[2],10) };
   return 'all';
 }
-// Filename-safe label, e.g. "October_2026" / "Q3_2026"
-function periodSlug(p) { return periodLabel(p).replace(/\s+/g, '_'); }
-// "Monthly" / "Quarterly" for report titles and button labels
-function periodKindWord(p) { return isMonthPeriod(p) ? 'Monthly' : 'Quarterly'; }
+// Filename-safe label, e.g. "October_2026" / "Q3_2026" / "2026-10-01_to_2026-10-31"
+function periodSlug(p) {
+  if (isCustomPeriod(p)) return p.start + '_to_' + p.end;
+  return periodLabel(p).replace(/\s+/g, '_');
+}
+// Used in report titles, button labels and filenames
+function periodKindWord(p) {
+  if (isCustomPeriod(p)) return 'Custom';
+  return isMonthPeriod(p) ? 'Monthly' : 'Quarterly';
+}
 
 // Computes the full set of quarterly stats for one panel — used by both
 // the in-app Quarterly Summary card and the exported Word report, so the
@@ -3538,10 +3688,62 @@ function computeQuarterlyStats(tid, period) {
 
 // Splits a period into its natural sub-intervals for the report's breakdown
 // table: a quarter -> its 3 months, a month -> its calendar weeks.
+// Sub-unit a custom range breaks down into, chosen by length so neither
+// extreme is unreadable: a 3-day range as one weekly row says nothing, and
+// two years of weekly rows is a wall of numbers.
+function customBreakdownUnit(period) {
+  var days = customRangeDays(period);
+  if (days <= 31)  return 'day';
+  if (days <= 184) return 'week';
+  return 'month';
+}
+
 function computeMonthlyBreakdown(tid, period) {
   if (isAllTime(period)) return [];
   var s = T[tid];
   var dispAll = (s.deleted || []).concat(s.archived || []);
+
+  if (isCustomPeriod(period)) {
+    var a = isoToLocalDate(period.start), b = isoToLocalDate(period.end);
+    if (!a || !b) return [];
+    var unit = customBreakdownUnit(period);
+    var SH = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var out = [], cur = new Date(a.getTime());
+
+    while (cur <= b) {
+      var segStart = new Date(cur.getTime()), segEnd;
+      if (unit === 'day') {
+        segEnd = new Date(cur.getTime());
+      } else if (unit === 'week') {
+        segEnd = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + (6 - cur.getDay()));
+      } else {
+        segEnd = new Date(cur.getFullYear(), cur.getMonth() + 1, 0); // month end
+      }
+      if (segEnd > b) segEnd = new Date(b.getTime());
+
+      var ss = midnightLocal(segStart), se = midnightLocal(segEnd);
+      var segRows = dispAll.filter(function(r) {
+        var d = parseLocalDate(r._dispositionedAt);
+        if (!d) return false;
+        var dm = midnightLocal(d);
+        return dm >= ss && dm <= se;
+      });
+
+      var label;
+      if (unit === 'day') {
+        label = SH[segStart.getMonth()] + ' ' + segStart.getDate();
+      } else if (unit === 'month') {
+        label = SH[segStart.getMonth()] + ' ' + segStart.getFullYear();
+      } else {
+        label = (segStart.getMonth()+1) + '/' + segStart.getDate() + ' \u2013 ' +
+                (segEnd.getMonth()+1) + '/' + segEnd.getDate();
+      }
+      out.push({ label: label, stats: computeStatsForRowSet(tid, segRows) });
+
+      cur = new Date(segEnd.getFullYear(), segEnd.getMonth(), segEnd.getDate() + 1);
+    }
+    return out;
+  }
 
   if (isMonthPeriod(period)) {
     // Week-by-week within the month. Weeks are calendar-aligned (Sun-Sat)
