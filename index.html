@@ -2397,30 +2397,34 @@ function renderCharts(tid) {
     var qaErr = (r.qaErrors === '' || r.qaErrors == null) ? 0 : parseInt(r.qaErrors, 10) || 0;
     return totalTx > 0 ? Math.max(0, (totalTx - prErr - qaErr) / totalTx * 100) : null;
   }
-  var rftByMonth = {}; // { 'MM/YYYY': [pct, pct, ...] }
-  var prErrByMonth = {}; // { 'MM/YYYY': totalPrErrors }
-  var qaErrByMonth = {}; // { 'MM/YYYY': totalQaErrors }
+  // RFT % trend is bucketed by WEEK (calendar weeks clipped to their own
+  // month, so a week never straddles two months). Weeks with no
+  // dispositions simply don't appear, so the chart stays as dense as the
+  // actual batch activity and no emptier.
+  var rftByWeek = {};   // key -> { pcts:[], prErr, qaErr, short, range }
   disp.forEach(function(r) {
     if (!r._dispositionedAt) return;
     var d = parseLocalDate(r._dispositionedAt);
     if (!d) return;
-    var key = (d.getMonth()+1) + '/' + d.getFullYear();
     var pct = calcRft(r);
     if (pct === null) return;
-    if (!rftByMonth[key]) rftByMonth[key] = [];
-    rftByMonth[key].push(pct);
-    var prErr = (r.prErrors === '' || r.prErrors == null) ? 0 : parseInt(r.prErrors, 10) || 0;
-    var qaErr = (r.qaErrors === '' || r.qaErrors == null) ? 0 : parseInt(r.qaErrors, 10) || 0;
-    prErrByMonth[key] = (prErrByMonth[key] || 0) + prErr;
-    qaErrByMonth[key] = (qaErrByMonth[key] || 0) + qaErr;
+    var wb = weekBoundsFor(d);
+    if (!rftByWeek[wb.key]) {
+      rftByWeek[wb.key] = { pcts: [], prErr: 0, qaErr: 0, short: wb.shortLabel, range: wb.rangeLabel };
+    }
+    var b = rftByWeek[wb.key];
+    b.pcts.push(pct);
+    b.prErr += (r.prErrors === '' || r.prErrors == null) ? 0 : parseInt(r.prErrors, 10) || 0;
+    b.qaErr += (r.qaErrors === '' || r.qaErrors == null) ? 0 : parseInt(r.qaErrors, 10) || 0;
   });
-  var rftMonthKeys = Object.keys(rftByMonth).sort(function(a,b) {
-    var pa = a.split('/'), pb = b.split('/');
-    return (parseInt(pa[1])*12+parseInt(pa[0])) - (parseInt(pb[1])*12+parseInt(pb[0]));
-  });
-  var rftTrendLabels = rftMonthKeys;
-  var rftTrendData   = rftMonthKeys.map(function(k) {
-    var arr = rftByMonth[k];
+  var rftWeekKeys = Object.keys(rftByWeek)
+    .map(Number)
+    .sort(function(a, b){ return a - b; });   // key is YYYYMMDD, so numeric sort is chronological
+
+  var rftTrendLabels = rftWeekKeys.map(function(k){ return rftByWeek[k].short; });
+  var rftTrendRanges = rftWeekKeys.map(function(k){ return rftByWeek[k].range; });
+  var rftTrendData   = rftWeekKeys.map(function(k) {
+    var arr = rftByWeek[k].pcts;
     var avg = arr.reduce(function(a,b){return a+b;},0)/arr.length;
     // Cap to 2 decimal places, always rounding UP (not standard rounding) —
     // add a tiny epsilon first so values already exact to 2 decimals (e.g.
@@ -2428,8 +2432,9 @@ function renderCharts(tid) {
     // extra hundredth by Math.ceil.
     return Math.ceil(avg * 100 - 1e-9) / 100;
   });
-  var rftTrendPrErr = rftMonthKeys.map(function(k){ return prErrByMonth[k] || 0; });
-  var rftTrendQaErr = rftMonthKeys.map(function(k){ return qaErrByMonth[k] || 0; });
+  var rftTrendBatches = rftWeekKeys.map(function(k){ return rftByWeek[k].pcts.length; });
+  var rftTrendPrErr   = rftWeekKeys.map(function(k){ return rftByWeek[k].prErr; });
+  var rftTrendQaErr   = rftWeekKeys.map(function(k){ return rftByWeek[k].qaErr; });
 
   // Current calendar month stats — ALWAYS derived from unfiltered dispAll,
   // independent of the selected quarter, since this is meant to be a
@@ -2536,7 +2541,7 @@ function renderCharts(tid) {
   html += '</div>';
 
   // ── TOP: RFT % Over Time — shown first when switching to this tab ──
-  html += card(tid+'-rfttrd', 'RFT % Over Time', 'Average Right First Time % per month — based on ' + totalTx.toLocaleString() + ' transactions per batch', '240px');
+  html += card(tid+'-rfttrd', 'RFT % Over Time', 'Average Right First Time % per week — based on ' + totalTx.toLocaleString() + ' transactions per batch', '240px');
 
   // ── ROW 0: Current Status — always-current snapshot, independent of the
   //           selected quarter (distinct from the Quarterly Summary above) ──
@@ -2612,9 +2617,16 @@ function renderCharts(tid) {
           tooltip:{
             backgroundColor:'#1e1e1e', borderColor:'#444', borderWidth:1,
             callbacks:{
+              // Axis labels are compact (week start), so the tooltip spells
+              // out the full week range it covers.
+              title: function(items) {
+                var i = items && items.length ? items[0].dataIndex : -1;
+                return (i >= 0 && rftTrendRanges[i]) ? rftTrendRanges[i] : '';
+              },
               afterLabel: function(ctx) {
                 var i = ctx.dataIndex;
                 return [
+                  'Batches: ' + (rftTrendBatches[i] || 0),
                   'PR Errors: ' + (rftTrendPrErr[i] || 0),
                   'QA Insp. Errors: ' + (rftTrendQaErr[i] || 0)
                 ];
@@ -3365,6 +3377,27 @@ function getSelectableMonths() {
     cur = getPreviousMonth(cur.m, cur.y);
   }
   return list;
+}
+
+// Calendar week (Sun–Sat) containing `d`, CLIPPED to d's own month so a
+// week never spans two months. Shared by the RFT chart and the report's
+// weekly breakdown so both bucket identically.
+function weekBoundsFor(d) {
+  var mStart = new Date(d.getFullYear(), d.getMonth(), 1);
+  var mEnd   = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  var start  = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay());
+  if (start < mStart) start = mStart;
+  var end = new Date(d.getFullYear(), d.getMonth(), d.getDate() + (6 - d.getDay()));
+  if (end > mEnd) end = mEnd;
+  return {
+    start: start,
+    end: end,
+    // Sortable, unique: YYYYMMDD of the week's first day
+    key: start.getFullYear() * 10000 + (start.getMonth() + 1) * 100 + start.getDate(),
+    shortLabel: (start.getMonth() + 1) + '/' + start.getDate(),
+    rangeLabel: (start.getMonth() + 1) + '/' + start.getDate() + ' – ' +
+                (end.getMonth() + 1) + '/' + end.getDate() + ', ' + end.getFullYear()
+  };
 }
 
 // ── Period abstraction ─────────────────────────────────────────
