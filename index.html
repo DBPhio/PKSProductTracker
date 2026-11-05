@@ -1315,6 +1315,18 @@ function renderChartToImage(config, width, height) {
     mergedConfig.options = mergedConfig.options || {};
     mergedConfig.options.responsive = false;
     mergedConfig.options.animation = false;
+    // The JSON round-trip above strips functions, so any axis marked
+    // pctTicks gets its formatter re-attached here — otherwise percent axes
+    // in exported charts render as bare, long-decimal numbers.
+    if (mergedConfig.options.scales) {
+      Object.keys(mergedConfig.options.scales).forEach(function(axis) {
+        var sc = mergedConfig.options.scales[axis];
+        if (sc && sc.ticks && sc.ticks.pctTicks) {
+          delete sc.ticks.pctTicks;
+          sc.ticks.callback = fmtPctTick;
+        }
+      });
+    }
     mergedConfig.plugins = [whiteBackground, sliceValueLabels];
 
     var chart = new Chart(canvas, mergedConfig);
@@ -1388,7 +1400,7 @@ function generateQuarterlyReport() {
       plugins: { legend: { display: true, labels: { color: DARKTXT, font: { size: 13 } } } },
       scales: {
         x: { ticks: { color: DARKTXT, font: { size: 12 } }, grid: { color: '#e5e5e5' } },
-        y: { ticks: { color: DARKTXT, font: { size: 12 }, callback: function(v){ return v + '%'; } }, grid: { color: '#e5e5e5' } }
+        y: { ticks: { color: DARKTXT, font: { size: 12 }, pctTicks: true }, grid: { color: '#e5e5e5' } }
       }
     }
   };
@@ -2202,6 +2214,15 @@ function onQuarterChange() {
 }
 
 // ── Chart helpers ─────────────────────────────────────────────
+// Percent axis tick label, capped at 3 decimal places. Chart.js derives
+// tick values from the data range and can land on long floats like
+// 99.96666666666667; this keeps the axis readable without inventing
+// precision. Trailing zeros are dropped so round values stay clean (100%).
+function fmtPctTick(v) {
+  var n = Number(v);
+  if (!isFinite(n)) return v + '%';
+  return parseFloat(n.toFixed(3)) + '%';
+}
 function makeChart(canvasId, type, labels, datasets, opts) {
   var canvas = document.getElementById(canvasId);
   if (!canvas) return;
@@ -2634,7 +2655,7 @@ function renderCharts(tid) {
             }
           }
         },
-        scales:{y:{ticks:{callback:function(v){return v+'%';}}}}
+        scales:{y:{ticks:{callback:fmtPctTick}}}
       });
     } else emptyChart(tid+'-rfttrd');
 
@@ -2650,7 +2671,7 @@ function renderCharts(tid) {
     if (corrRateLabels.length) {
       makeChart('chart-'+tid+'-corrrate','bar',corrRateLabels,[{
         label:'% with corrections',data:corrRatePct,backgroundColor:CHART_COLORS.bar3,borderRadius:4
-      }],{scales:{y:{max:100,ticks:{callback:function(v){return v+'%';}}}},plugins:{legend:{display:false}}});
+      }],{scales:{y:{max:100,ticks:{callback:fmtPctTick}}},plugins:{legend:{display:false}}});
     } else emptyChart(tid+'-corrrate');
 
     // PR velocity
