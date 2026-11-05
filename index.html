@@ -433,7 +433,7 @@
     <button class="tab-btn" id="tab-biofire" onclick="switchTab('biofire')">📊 BioFire</button>
     <div id="quarter-controls" style="display:none;align-items:center;gap:8px;margin-left:auto;padding-right:6px;">
       <select id="quarter-select" class="quarter-select" onchange="onQuarterChange()"></select>
-      <button class="btn" id="report-btn" onclick="generateQuarterlyReport()" style="font-size:10pt;">📄 Generate Quarterly Report</button>
+      <button class="btn" id="report-btn" onclick="generateQuarterlyReport()" style="font-size:10pt;">📄 Generate Report</button>
     </div>
   </div>
 
@@ -1329,19 +1329,21 @@ function renderChartToImage(config, width, height) {
   });
 }
 
-function getRecentQuarters(current, count) {
+// Walks back `count` periods from `current`, staying in the same unit
+// (months back for a month, quarters back for a quarter). Oldest first.
+function getRecentPeriods(current, count) {
   var list = [current];
-  var q = current;
+  var p = current;
   for (var i = 1; i < count; i++) {
-    q = getPreviousQuarter(q.q, q.y);
-    list.unshift(q);
+    p = getPreviousPeriod(p);
+    list.unshift(p);
   }
   return list;
 }
 
 function generateQuarterlyReport() {
-  if (_selectedQuarter === 'all') {
-    alert('Select a specific quarter (not "All Time") to generate a report.');
+  if (isAllTime(_selectedQuarter)) {
+    alert('Select a month or a quarter (not "All Time") to generate a report.');
     return;
   }
   if (typeof docx === 'undefined') {
@@ -1351,23 +1353,26 @@ function generateQuarterlyReport() {
   closeSettingsMenu();
 
   var D = docx;
-  var qLabel = quarterLabel(_selectedQuarter.q, _selectedQuarter.y);
+  var qLabel = periodLabel(_selectedQuarter);
   var GREEN = '1D9E75', BLUE = '6496DC', AMBER = 'F0C040', DARKTXT = '333333', MIDTXT = '666666';
   var PRODUCTS = [
     { tid: 'imm',     name: 'IMM',     color: GREEN, rgb: 'rgba(29,158,117,1)' },
     { tid: 'prompt',  name: 'Prompt',  color: BLUE,  rgb: 'rgba(100,150,220,1)' },
     { tid: 'biofire', name: 'BioFire', color: AMBER, rgb: 'rgba(200,150,20,1)' }
   ];
-  var recentQuarters = getRecentQuarters(_selectedQuarter, 4);
-  var qStats = {}; // tid -> stats for the selected quarter
+  // Trend window follows the period's unit: last 6 months for a monthly
+  // report, last 4 quarters for a quarterly one.
+  var trendCount    = isMonthPeriod(_selectedQuarter) ? 6 : 4;
+  var recentPeriods = getRecentPeriods(_selectedQuarter, trendCount);
+  var qStats = {}; // tid -> stats for the selected period
   PRODUCTS.forEach(function(p){ qStats[p.tid] = computeQuarterlyStats(p.tid, _selectedQuarter); });
 
-  // ── Build the combined RFT % trend chart (last 4 quarters, one line per product) ──
-  var trendLabels = recentQuarters.map(function(q){ return quarterLabel(q.q, q.y); });
+  // ── Combined RFT % trend chart, one line per product ──
+  var trendLabels = recentPeriods.map(periodLabel);
   var trendDatasets = PRODUCTS.map(function(p) {
     return {
       label: p.name,
-      data: recentQuarters.map(function(q){ var s = computeQuarterlyStats(p.tid, q); return s.avgRft; }),
+      data: recentPeriods.map(function(per){ var s = computeQuarterlyStats(p.tid, per); return s.avgRft; }),
       borderColor: p.rgb,
       backgroundColor: 'transparent',
       borderWidth: 2.5,
@@ -1420,6 +1425,13 @@ function generateQuarterlyReport() {
 function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DARKTXT, MIDTXT) {
   var FONT = 'Aptos Narrow'; // matches the website's font (--aptos), falls back gracefully in Word
   var SIZE = 24; // 12pt, in half-points
+  // Wording adapts to the period: a quarter breaks down into months, a
+  // month into weeks, and the trend window differs in unit and length.
+  var isMonthly     = isMonthPeriod(_selectedQuarter);
+  var kindWord      = periodKindWord(_selectedQuarter);        // 'Monthly' | 'Quarterly'
+  var subUnitLabel  = isMonthly ? 'Week' : 'Month';
+  var breakdownHead = isMonthly ? 'Weekly Breakdown' : 'Monthly Breakdown';
+  var trendHead     = isMonthly ? 'RFT % Trend — Last 6 Months' : 'RFT % Trend — Last 4 Quarters';
 
   function hdrCell(text, width) {
     return new D.TableCell({
@@ -1490,7 +1502,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
     var monthly = computeMonthlyBreakdown(p.tid, _selectedQuarter);
     var monthRows = [
       new D.TableRow({ children: [
-        hdrCell('Month', 1900), hdrCell('Batches', 1400), hdrCell('Avg RFT %', 1600),
+        hdrCell(subUnitLabel, 1900), hdrCell('Batches', 1400), hdrCell('Avg RFT %', 1600),
         hdrCell('PR Errors', 1550), hdrCell('QA Insp. Errors', 1550)
       ] })
     ];
@@ -1518,7 +1530,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
       new D.Paragraph({ text: '', spacing: { before: 300, after: 150 } }),
       new D.Paragraph({
         alignment: D.AlignmentType.CENTER,
-        children: [new D.TextRun({ text: 'Monthly Breakdown', bold: true, size: SIZE, font: FONT, color: DARKTXT })]
+        children: [new D.TextRun({ text: breakdownHead, bold: true, size: SIZE, font: FONT, color: DARKTXT })]
       }),
       new D.Paragraph({ text: '', spacing: { after: 150 } }),
       new D.Table({ width: { size: 8000, type: D.WidthType.DXA }, columnWidths: [1900,1400,1600,1550,1550], rows: monthRows, alignment: D.AlignmentType.CENTER }),
@@ -1538,7 +1550,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
   var children = [
     new D.Paragraph({
       alignment: D.AlignmentType.CENTER,
-      children: [new D.TextRun({ text: 'Quarterly Summary Report', bold: true, size: SIZE, font: FONT, color: '1D9E75' })]
+      children: [new D.TextRun({ text: kindWord + ' Summary Report', bold: true, size: SIZE, font: FONT, color: '1D9E75' })]
     }),
     new D.Paragraph({
       alignment: D.AlignmentType.CENTER,
@@ -1556,7 +1568,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
     new D.Paragraph({ text: '', spacing: { after: 150 } }),
     new D.Table({ width: { size: 8000, type: D.WidthType.DXA }, columnWidths: [3200, 1600, 1600, 1600], rows: execRows, alignment: D.AlignmentType.CENTER }),
     new D.Paragraph({ text: '', spacing: { before: 350, after: 150 } }),
-    new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ text: 'RFT % Trend — Last 4 Quarters', bold: true, size: SIZE, font: FONT, color: DARKTXT })] }),
+    new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ text: trendHead, bold: true, size: SIZE, font: FONT, color: DARKTXT })] }),
     new D.Paragraph({ text: '', spacing: { after: 150 } }),
     new D.Paragraph({
       alignment: D.AlignmentType.CENTER,
@@ -1589,7 +1601,7 @@ function buildAndDownloadDoc(D, qLabel, PRODUCTS, qStats, trendImg, lagImgs, DAR
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'Quarterly_Report_' + qLabel.replace(' ', '_') + '.docx';
+    a.download = kindWord + '_Report_' + periodSlug(_selectedQuarter) + '.docx';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -2138,37 +2150,54 @@ function switchTab(tab) {
   }
 }
 
-// ── Quarter selector state & controls ──────────────────────────
-var _selectedQuarter = 'all'; // {q, y} or 'all' — defaults to All Time
+// ── Period selector state & controls ───────────────────────────
+// 'all' | {type:'month', m, y} | {type:'quarter', q, y}. Defaults to All Time.
+var _selectedQuarter = 'all';
+
+// Keeps the report button's label and enabled state in step with the
+// current selection: a report needs a defined period, so All Time disables it.
+function syncReportButton() {
+  var btn = document.getElementById('report-btn');
+  if (!btn) return;
+  var all = isAllTime(_selectedQuarter);
+  btn.disabled = all;
+  btn.textContent = all
+    ? '\uD83D\uDCC4 Generate Report'
+    : '\uD83D\uDCC4 Generate ' + periodKindWord(_selectedQuarter) + ' Report';
+  btn.title = all
+    ? 'Pick a month or quarter to generate a report'
+    : 'Generate a report for ' + periodLabel(_selectedQuarter);
+}
 
 function populateQuarterSelect() {
   var sel = document.getElementById('quarter-select');
   if (!sel || sel.dataset.populated) return; // only build once
   sel.dataset.populated = '1';
-  var quarters = getSelectableQuarters();
-  var html = quarters.map(function(qy, i) {
-    var isCurrent = i === 0;
-    return '<option value="' + qy.q + '-' + qy.y + '">' +
-      quarterLabel(qy.q, qy.y) + (isCurrent ? ' (current)' : '') + '</option>';
-  }).join('');
-  html += '<option value="all" selected>All Time</option>';
+
+  var html = '<option value="all" selected>All Time</option>';
+
+  html += '<optgroup label="Months">';
+  getSelectableMonths().forEach(function(my, i) {
+    html += '<option value="' + periodToValue({ type:'month', m: my.m, y: my.y }) + '">' +
+      monthLabel(my.m, my.y) + (i === 0 ? ' (current)' : '') + '</option>';
+  });
+  html += '</optgroup>';
+
+  html += '<optgroup label="Quarters">';
+  getSelectableQuarters().forEach(function(qy, i) {
+    html += '<option value="' + periodToValue({ type:'quarter', q: qy.q, y: qy.y }) + '">' +
+      quarterLabel(qy.q, qy.y) + (i === 0 ? ' (current)' : '') + '</option>';
+  });
+  html += '</optgroup>';
+
   sel.innerHTML = html;
-  // Match the initial disabled state of the report button to the default selection
-  var reportBtn = document.getElementById('report-btn');
-  if (reportBtn) reportBtn.disabled = (_selectedQuarter === 'all');
+  syncReportButton();
 }
 
 function onQuarterChange() {
   var sel = document.getElementById('quarter-select');
-  var val = sel.value;
-  if (val === 'all') {
-    _selectedQuarter = 'all';
-  } else {
-    var parts = val.split('-');
-    _selectedQuarter = { q: parseInt(parts[0], 10), y: parseInt(parts[1], 10) };
-  }
-  var reportBtn = document.getElementById('report-btn');
-  if (reportBtn) reportBtn.disabled = (_selectedQuarter === 'all');
+  _selectedQuarter = periodFromValue(sel.value);
+  syncReportButton();
   if (_activeTab !== 'tracker') renderCharts(_activeTab);
 }
 
@@ -2234,9 +2263,9 @@ function renderCharts(tid) {
   // Apply the selected quarter filter (if any) — everything below derives
   // from `disp`, so filtering here automatically scopes every chart and
   // stat card to the chosen quarter without touching their calculations.
-  var disp = (_selectedQuarter === 'all')
+  var disp = isAllTime(_selectedQuarter)
     ? dispAll
-    : dispAll.filter(function(r){ return isDateInQuarter(r._dispositionedAt, _selectedQuarter.q, _selectedQuarter.y); });
+    : dispAll.filter(function(r){ return isDateInPeriod(r._dispositionedAt, _selectedQuarter); });
   var allRows = (s.rows || []).concat(disp);
   var panelName = { imm:'IMM', prompt:'Prompt', biofire:'BioFire' }[tid];
   var WIN = 5;
@@ -2449,15 +2478,16 @@ function renderCharts(tid) {
     if (v !== null && v >= 0) qtrRR.push(v);
   });
 
-  // Quarter-over-quarter comparison (only meaningful for a specific quarter, not 'all')
+  // Previous-period comparison — month-over-month for a month, quarter-over-
+  // quarter for a quarter. Not meaningful for 'all'.
   var qoq = null;
-  if (_selectedQuarter !== 'all') {
-    var prevQ = getPreviousQuarter(_selectedQuarter.q, _selectedQuarter.y);
-    var prevDisp = dispAll.filter(function(r){ return isDateInQuarter(r._dispositionedAt, prevQ.q, prevQ.y); });
+  if (!isAllTime(_selectedQuarter)) {
+    var prevP = getPreviousPeriod(_selectedQuarter);
+    var prevDisp = dispAll.filter(function(r){ return isDateInPeriod(r._dispositionedAt, prevP); });
     var prevRftPcts = prevDisp.map(calcRft).filter(function(v){ return v !== null; });
     var prevAvgRft = prevRftPcts.length ? Math.round((prevRftPcts.reduce(function(a,b){return a+b;},0)/prevRftPcts.length)*100)/100 : null;
     qoq = {
-      label: quarterLabel(prevQ.q, prevQ.y),
+      label: periodLabel(prevP),
       batchesDelta: qtrTotalBatches - prevDisp.length,
       rftDelta: (qtrAvgRft !== null && prevAvgRft !== null) ? Math.round((qtrAvgRft - prevAvgRft)*100)/100 : null
     };
@@ -2472,7 +2502,7 @@ function renderCharts(tid) {
   var html = '';
 
   // ── TOP: Quarterly Summary — always shown first ──────────────
-  var qtrTitle = _selectedQuarter === 'all' ? 'All Time' : quarterLabel(_selectedQuarter.q, _selectedQuarter.y);
+  var qtrTitle = periodLabel(_selectedQuarter);
   html += '<div class="chart-card"><div class="chart-card-title">' + panelName + ' — ' + qtrTitle + ' Summary</div>';
   html += '<div class="chart-stat-row">';
   [
@@ -3307,6 +3337,76 @@ function getSelectableQuarters() {
   return list;
 }
 
+// ── Month helpers ──────────────────────────────────────────────
+var MONTH_NAMES = ['January','February','March','April','May','June',
+                   'July','August','September','October','November','December'];
+function getCurrentMonth() {
+  var d = new Date();
+  return { m: d.getMonth(), y: d.getFullYear() }; // m is 0-indexed
+}
+function getMonthRange(m, y) {
+  return { start: new Date(y, m, 1), end: new Date(y, m + 1, 0) };
+}
+function isDateInMonth(dateStr, m, y) {
+  var d = parseLocalDate(dateStr);
+  if (!d) return false;
+  return d.getMonth() === m && d.getFullYear() === y;
+}
+function getPreviousMonth(m, y) {
+  return m === 0 ? { m: 11, y: y - 1 } : { m: m - 1, y: y };
+}
+function monthLabel(m, y) { return MONTH_NAMES[m] + ' ' + y; }
+// Current month + previous 11 (one year back)
+function getSelectableMonths() {
+  var list = [];
+  var cur = getCurrentMonth();
+  for (var i = 0; i < 12; i++) {
+    list.push({ m: cur.m, y: cur.y });
+    cur = getPreviousMonth(cur.m, cur.y);
+  }
+  return list;
+}
+
+// ── Period abstraction ─────────────────────────────────────────
+// A period is 'all', {type:'month', m, y} or {type:'quarter', q, y}.
+// Everything downstream (filtering, labelling, comparisons, reports)
+// goes through these so months and quarters behave identically.
+function isAllTime(p) { return !p || p === 'all'; }
+function isMonthPeriod(p)   { return !isAllTime(p) && p.type === 'month'; }
+function isQuarterPeriod(p) { return !isAllTime(p) && p.type === 'quarter'; }
+
+function periodLabel(p) {
+  if (isAllTime(p)) return 'All Time';
+  return isMonthPeriod(p) ? monthLabel(p.m, p.y) : quarterLabel(p.q, p.y);
+}
+function isDateInPeriod(dateStr, p) {
+  if (isAllTime(p)) return true;
+  return isMonthPeriod(p) ? isDateInMonth(dateStr, p.m, p.y)
+                          : isDateInQuarter(dateStr, p.q, p.y);
+}
+function getPreviousPeriod(p) {
+  if (isAllTime(p)) return null;
+  if (isMonthPeriod(p)) { var pm = getPreviousMonth(p.m, p.y); return { type:'month', m: pm.m, y: pm.y }; }
+  var pq = getPreviousQuarter(p.q, p.y);
+  return { type:'quarter', q: pq.q, y: pq.y };
+}
+// Serialise/parse for the <select> value attribute
+function periodToValue(p) {
+  if (isAllTime(p)) return 'all';
+  return isMonthPeriod(p) ? ('m:' + p.m + ':' + p.y) : ('q:' + p.q + ':' + p.y);
+}
+function periodFromValue(v) {
+  if (!v || v === 'all') return 'all';
+  var parts = String(v).split(':');
+  if (parts[0] === 'm') return { type:'month',   m: parseInt(parts[1],10), y: parseInt(parts[2],10) };
+  if (parts[0] === 'q') return { type:'quarter', q: parseInt(parts[1],10), y: parseInt(parts[2],10) };
+  return 'all';
+}
+// Filename-safe label, e.g. "October_2026" / "Q3_2026"
+function periodSlug(p) { return periodLabel(p).replace(/\s+/g, '_'); }
+// "Monthly" / "Quarterly" for report titles and button labels
+function periodKindWord(p) { return isMonthPeriod(p) ? 'Monthly' : 'Quarterly'; }
+
 // Computes the full set of quarterly stats for one panel — used by both
 // the in-app Quarterly Summary card and the exported Word report, so the
 // two always agree with each other.
@@ -3372,32 +3472,61 @@ function computeStatsForRowSet(tid, disp) {
   };
 }
 
-function computeQuarterlyStats(tid, quarterObj) {
+// Stats for one panel over any period ('all', a month, or a quarter).
+// Named computeQuarterlyStats for historical reasons; it is period-generic.
+function computeQuarterlyStats(tid, period) {
   var s = T[tid];
   var dispAll = (s.deleted || []).concat(s.archived || []);
-  var disp = quarterObj === 'all' ? dispAll
-    : dispAll.filter(function(r){ return isDateInQuarter(r._dispositionedAt, quarterObj.q, quarterObj.y); });
+  var disp = isAllTime(period) ? dispAll
+    : dispAll.filter(function(r){ return isDateInPeriod(r._dispositionedAt, period); });
   return computeStatsForRowSet(tid, disp);
 }
 
-// Breaks a specific quarter down into its 3 individual months, computing
-// the same stat set for each — used to add a monthly breakdown table to
-// the exported quarterly report.
-function computeMonthlyBreakdown(tid, quarterObj) {
-  if (quarterObj === 'all') return [];
+// Splits a period into its natural sub-intervals for the report's breakdown
+// table: a quarter -> its 3 months, a month -> its calendar weeks.
+function computeMonthlyBreakdown(tid, period) {
+  if (isAllTime(period)) return [];
   var s = T[tid];
   var dispAll = (s.deleted || []).concat(s.archived || []);
-  var startMonth = (quarterObj.q - 1) * 3; // 0-indexed
+
+  if (isMonthPeriod(period)) {
+    // Week-by-week within the month. Weeks are calendar-aligned (Sun-Sat)
+    // and clipped to the month, so the first and last may be partial.
+    var range = getMonthRange(period.m, period.y);
+    var out = [];
+    var cursor = new Date(range.start.getTime());
+    while (cursor <= range.end) {
+      var wStart = new Date(cursor.getTime());
+      var wEnd   = new Date(cursor.getTime());
+      wEnd.setDate(wEnd.getDate() + (6 - wEnd.getDay())); // through Saturday
+      if (wEnd > range.end) wEnd = new Date(range.end.getTime());
+      var ws = midnightLocal(wStart), we = midnightLocal(wEnd);
+      var weekRows = dispAll.filter(function(r) {
+        var d = parseLocalDate(r._dispositionedAt);
+        if (!d) return false;
+        var dm = midnightLocal(d);
+        return dm >= ws && dm <= we;
+      });
+      out.push({
+        label: (wStart.getMonth()+1) + '/' + wStart.getDate() + ' – ' + (wEnd.getMonth()+1) + '/' + wEnd.getDate(),
+        stats: computeStatsForRowSet(tid, weekRows)
+      });
+      cursor = new Date(wEnd.getTime());
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return out;
+  }
+
+  // Quarter -> its 3 months
+  var startMonth = (period.q - 1) * 3; // 0-indexed
   var months = [];
   for (var i = 0; i < 3; i++) {
     var m = startMonth + i;
-    var y = quarterObj.y;
+    var y = period.y;
     var monthRows = dispAll.filter(function(r) {
-      var d = parseLocalDate(r._dispositionedAt);
-      return d && d.getMonth() === m && d.getFullYear() === y;
+      return isDateInMonth(r._dispositionedAt, m, y);
     });
-    var monthName = new Date(y, m, 1).toLocaleString('en-US', { month: 'long' });
-    months.push({ label: monthName + ' ' + y, stats: computeStatsForRowSet(tid, monthRows) });
+    months.push({ label: monthLabel(m, y), stats: computeStatsForRowSet(tid, monthRows) });
   }
   return months;
 }
