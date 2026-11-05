@@ -2224,6 +2224,7 @@ function populateQuarterSelect() {
   sel.dataset.populated = '1';
 
   var html = '<option value="all" selected>All Time</option>';
+  html += '<option value="custom">Custom Range\u2026</option>';
 
   html += '<optgroup label="Months">';
   getSelectableMonths().forEach(function(my, i) {
@@ -2238,8 +2239,6 @@ function populateQuarterSelect() {
       quarterLabel(qy.q, qy.y) + (i === 0 ? ' (current)' : '') + '</option>';
   });
   html += '</optgroup>';
-
-  html += '<option value="custom">Custom Range\u2026</option>';
 
   sel.innerHTML = html;
   syncReportButton();
